@@ -1,12 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { HTTP_BASE_PATH } from "./constants.js";
-import {
-  normalizeSessionKey,
-  readTodo,
-  readTodoSummaries,
-  todoBelongsToSession,
-  validateTodoId,
-} from "./todo-state.js";
+import { readTodo, validateTodoId } from "./todo-state.js";
 
 export type TodoHttpResponse = {
   statusCode: number;
@@ -17,11 +11,7 @@ function jsonResponse(statusCode: number, body: unknown): TodoHttpResponse {
   return { statusCode, body };
 }
 
-function extractTodoId(urlPath: string): string | null {
-  if (urlPath === HTTP_BASE_PATH || urlPath === `${HTTP_BASE_PATH}/`) {
-    return null;
-  }
-
+function extractStatusTodoId(urlPath: string): string {
   const prefix = `${HTTP_BASE_PATH}/`;
   if (!urlPath.startsWith(prefix)) {
     return "";
@@ -29,9 +19,6 @@ function extractTodoId(urlPath: string): string | null {
 
   const rest = urlPath.slice(prefix.length);
   const parts = rest.split("/").filter(Boolean);
-  if (parts.length === 1) {
-    return decodeURIComponent(parts[0]!);
-  }
   if (parts.length === 2 && parts[1] === "status") {
     return decodeURIComponent(parts[0]!);
   }
@@ -48,17 +35,9 @@ export async function resolveTodoHttpResponse(
   }
 
   const parsed = new URL(requestUrl ?? "/", "http://localhost");
-  const sessionKey = parsed.searchParams.has("session_key")
-    ? normalizeSessionKey(parsed.searchParams.get("session_key") ?? undefined)
-    : null;
-  const todoId = extractTodoId(parsed.pathname);
+  const todoId = extractStatusTodoId(parsed.pathname);
   if (todoId === "") {
     return jsonResponse(404, { error: "Route not found" });
-  }
-
-  if (todoId === null) {
-    const todos = await readTodoSummaries(stateDir, sessionKey ?? undefined);
-    return jsonResponse(200, { todos });
   }
 
   const validationError = validateTodoId(todoId);
@@ -68,9 +47,6 @@ export async function resolveTodoHttpResponse(
 
   try {
     const todo = await readTodo(stateDir, todoId);
-    if (sessionKey && !todoBelongsToSession(todo, sessionKey)) {
-      return jsonResponse(404, { error: `Todo "${todoId}" not found` });
-    }
     return jsonResponse(200, todo);
   } catch {
     return jsonResponse(404, { error: `Todo "${todoId}" not found` });

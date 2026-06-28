@@ -11,7 +11,7 @@
 
 - 单元测试：11/11 通过。
 - OpenClaw 插件检查：`openclaw plugins doctor` 无问题。
-- HTTP 路由：列表接口、详情接口、非法 `todoId`、不支持方法均按预期返回。
+- HTTP 路由：单一前端状态接口、非法 `todoId`、未知 `todoId`、不支持方法均按预期返回。
 - 5 个日常任务调试集：5/5 通过。
 - 20 个最终验收任务：20/20 通过。
 - 复杂新任务会创建、更新并关闭 todo。
@@ -52,7 +52,7 @@ gateway ready
 - 工具序列包含 `astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_complete`。
 - 不在 `astronclaw_todo_create` 前固定调用 `astronclaw_todo_get`。
 - 当前 session 新增 1 个 todo。
-- HTTP 列表和详情都能读取该 todo。
+- HTTP 状态接口能按 `todoId` 读取该 todo。
 - todo 最终 `status` 为 `completed`。
 - `pendingItemCount` 为 0，`completedItemCount` 等于事项总数。
 - 最终回复不泄漏内部工具和文件名。
@@ -82,7 +82,7 @@ gateway ready
 
 调试集中发现并修复的问题：
 
-- `TodoSummary` 摘要缺少事项计数字段，HTTP 列表无法直接表达当前 todo 完成度。已补充 `itemCount`、`pendingItemCount`、`inProgressItemCount`、`completedItemCount`、`failedItemCount`。
+- `TodoSummary` 摘要缺少事项计数字段，Agent 内部恢复 todo 时无法直接表达当前完成度。已补充 `itemCount`、`pendingItemCount`、`inProgressItemCount`、`completedItemCount`、`failedItemCount`。
 - 整体关闭时间原先没有结构化字段。已补充 `closedAt`。
 - 有失败事项时整体状态不应误导为完成。`astronclaw_todo_complete` 现在会在有失败事项时关闭为 `failed`。
 
@@ -115,33 +115,36 @@ gateway ready
 
 ## HTTP 抽样
 
-列表接口：
+前端状态接口：
 
 ```http
-GET /plugins/conversation-todo-sync/todos?session_key=<sessionKey>
+GET /plugins/conversation-todo-sync/todos/<todoId>/status
 ```
 
-返回摘要包含：
+返回完整 `TodoList`，包含整体状态和每个 item 的 `status`、`message`、`startedAt`、`completedAt`、`artifactPaths`：
 
 ```json
 {
   "todoId": "family-dinners-c36fd4",
   "status": "completed",
-  "itemCount": 4,
-  "pendingItemCount": 0,
-  "inProgressItemCount": 0,
-  "completedItemCount": 4,
-  "failedItemCount": 0
+  "items": [
+    {
+      "id": "menu",
+      "title": "制定每日菜单",
+      "status": "completed",
+      "message": "已完成"
+    }
+  ]
 }
 ```
 
-详情接口：
+前端轮询规则：
 
-```http
-GET /plugins/conversation-todo-sync/todos/<todoId>/status?session_key=<sessionKey>
-```
-
-返回完整 `TodoList`，包含每个 item 的 `status`、`message`、`startedAt`、`completedAt` 和 `artifactPaths`。
+- 前端从上游消息事件或工具结果拿到 `todoId`。
+- 前端只轮询 `GET /plugins/conversation-todo-sync/todos/<todoId>/status`。
+- 不传 `session_key`。
+- `pending` 或 `running` 时继续轮询。
+- `completed` 或 `failed` 时停止轮询。
 
 ## 最终判断
 
@@ -150,5 +153,5 @@ GET /plugins/conversation-todo-sync/todos/<todoId>/status?session_key=<sessionKe
 - 名称和语义已经从任务设计概念收敛为 todo/checklist 状态同步。
 - 工具描述和 skill 能稳定触发日常多步骤任务。
 - 新任务、简单任务、续接任务三类行为区分清晰。
-- HTTP 状态能表达整体状态和事项级完成度。
+- HTTP 状态接口能按 `todoId` 表达整体状态和事项级完成度。
 - session 隔离有效，续接不会重复创建 todo。

@@ -229,7 +229,7 @@ type PersistedTodoState = {
 
 ### astronclaw_todo_complete
 
-用途：标记整个 todo 已结束，并更新 `completedAt`。
+用途：标记整个 todo 已结束，并更新 `closedAt`。
 
 典型输入：
 
@@ -247,21 +247,41 @@ type PersistedTodoState = {
 
 ## HTTP 协议
 
+HTTP 只作为前端轮询接口使用。前端已经能从上游消息事件或工具结果中拿到 `todoId`，因此不再提供列表发现接口，也不要求传 `session_key`。
+
 ```http
-GET /plugins/conversation-todo-sync/todos
-GET /plugins/conversation-todo-sync/todos?session_key=<sessionKey>
-GET /plugins/conversation-todo-sync/todos/<todoId>
 GET /plugins/conversation-todo-sync/todos/<todoId>/status
-GET /plugins/conversation-todo-sync/todos/<todoId>/status?session_key=<sessionKey>
 ```
 
 返回规则：
 
-- 列表接口返回 `{ "todos": TodoSummary[] }`。
-- 详情接口返回 `TodoList`。
+- 成功返回完整 `TodoList`。
 - 非法 `todoId` 返回 `400`。
+- 未找到 todo 返回 `404`。
 - 不支持的方法返回 `405`。
-- 带 `session_key` 时，如果 todo 不属于该会话，返回 `404`。
+
+前端轮询流程：
+
+```ts
+async function pollTodo(todoId: string) {
+  const res = await fetch(`/plugins/conversation-todo-sync/todos/${todoId}/status`);
+  if (res.status === 404) return { state: "missing" };
+  if (!res.ok) throw new Error(`todo status request failed: ${res.status}`);
+
+  const todo = await res.json();
+  if (todo.status === "completed" || todo.status === "failed") {
+    return { state: "done", todo };
+  }
+  return { state: "running", todo };
+}
+```
+
+轮询建议：
+
+- 前端拿到 `todoId` 后，只调用这一条接口。
+- `pending` 或 `running` 时继续轮询。
+- `completed` 或 `failed` 时停止轮询。
+- 前端不传 `session_key`；隔离仍由 Agent 工具层负责。
 
 ## 会话隔离
 
@@ -273,9 +293,8 @@ GET /plugins/conversation-todo-sync/todos/<todoId>/status?session_key=<sessionKe
 - `astronclaw_todo_get` 默认只列当前会话的 todo。
 - `astronclaw_todo_update` 只能更新当前会话拥有的 todo。
 - `astronclaw_todo_complete` 只能完成当前会话拥有的 todo。
-- HTTP 传入 `session_key` 时也会执行同样的归属校验。
 
-这样做的原因是 OpenClaw 可能同时服务多个会话。如果只靠 `todoId`，一个会话可能误读或误改另一个会话的状态。
+这样做的原因是 OpenClaw 可能同时服务多个会话。工具层必须防止 Agent 在不同会话之间误读或误改 todo。HTTP 前端接口不再做 `session_key` 发现和过滤，因为前端已经持有具体 `todoId`，只负责读取该 todo 的展示状态。
 
 ## 日常任务完整流程
 
@@ -307,19 +326,19 @@ astronclaw_todo_complete
   直接把家庭整理方案发给用户
 ```
 
-用户看到的是最终整理方案；UI 或 HTTP 客户端可以同时读取 todo 状态，知道每个事项是否完成。
+用户看到的是最终整理方案；前端拿到 `todoId` 后，可以通过单一 HTTP 状态接口轮询 todo，知道每个事项是否完成。
 
 ## 设计取舍
 
 - 不把工具使用规则塞进全局系统提示词。工具描述和 skill 已经提供触发条件，状态记录也在工具结果和持久化文件中。
 - 不保存重复的最终 summary 文件。最终答复属于对话内容，todo 插件只保存结构化事项状态。
 - 不把 todo 当成任务编排器。真正的执行逻辑仍由 Agent 和其它工具完成，本插件只负责同步状态。
-- 保留 HTTP 查询入口，便于 UI 展示、调试和外部系统读取。
+- 保留单一 HTTP 状态查询入口，便于前端按 `todoId` 轮询展示。
 
 ## 验收标准
 
 - 复杂日常任务能自动创建、更新并完成 todo。
 - 简单问答不会误触发 todo 工具。
 - 续接任务能先读取已有 todo，而不是重复创建。
-- HTTP 列表和详情接口能准确反映当前状态。
+- HTTP 状态接口能按 `todoId` 准确反映当前状态。
 - 用户最终回复不泄漏 `astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_complete`、`astronclaw_todo_get`、`todoId`、`todo.json` 等内部实现细节。

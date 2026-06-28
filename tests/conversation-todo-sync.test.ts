@@ -298,7 +298,7 @@ describe("conversation-todo-sync", () => {
     assert.equal(todo.status, "running");
   });
 
-  it("serves todo state over the HTTP resolver and returns 404 for unknown todos", async () => {
+  it("serves todo status by todoId over the HTTP resolver", async () => {
     const createTool = createTodoCreateTool(tmpDir);
     const created = parseToolResult(
       await createTool.execute("call-1", {
@@ -320,31 +320,19 @@ describe("conversation-todo-sync", () => {
       "GET",
       `/plugins/conversation-todo-sync/todos/${created.todoId}`,
     );
-    assert.equal(detailResponse.statusCode, 200);
-    assert.equal((detailResponse.body as any).todoId, created.todoId);
+    assert.equal(detailResponse.statusCode, 404);
 
     const listResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
       "/plugins/conversation-todo-sync/todos",
     );
-    assert.equal(listResponse.statusCode, 200);
-    assert.equal((listResponse.body as any).todos.length, 1);
-    assert.equal((listResponse.body as any).todos[0].itemCount, 1);
-    assert.equal((listResponse.body as any).todos[0].pendingItemCount, 1);
-
-    const filteredListResponse = await resolveTodoHttpResponse(
-      tmpDir,
-      "GET",
-      "/plugins/conversation-todo-sync/todos?session_key=other-session",
-    );
-    assert.equal(filteredListResponse.statusCode, 200);
-    assert.equal((filteredListResponse.body as any).todos.length, 0);
+    assert.equal(listResponse.statusCode, 404);
 
     const missingResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      "/plugins/conversation-todo-sync/todos/does-not-exist-abcdef",
+      "/plugins/conversation-todo-sync/todos/does-not-exist-abcdef/status",
     );
     assert.equal(missingResponse.statusCode, 404);
 
