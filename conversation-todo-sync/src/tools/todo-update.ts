@@ -21,7 +21,6 @@ const UpdateSchema = Type.Object(
     item_id: Type.Optional(Type.String({ description: "Todo item ID to update." })),
     item_index: Type.Optional(Type.Number({ description: "1-based todo item index to update." })),
     status: TodoItemStatusSchema,
-    message: Type.Optional(Type.String({ description: "Short current-state message for this todo item." })),
     artifact_paths: Type.Optional(
       Type.Array(Type.String(), { description: "Artifact paths or URLs associated with this todo item." }),
     ),
@@ -58,7 +57,6 @@ type TodoUpdateParams = {
     item_id?: string;
     item_index?: number;
     status: TodoItemStatus;
-    message?: string;
     artifact_paths?: string[];
   }>;
   append_items?: TodoItemInput[];
@@ -73,7 +71,6 @@ function makeItem(item: TodoItemInput, index: number): TodoItem {
     status: "pending",
     startedAt: null,
     completedAt: null,
-    message: "",
     artifactPaths: [],
   };
 }
@@ -169,7 +166,6 @@ export function createTodoUpdateTool(stateDir: string, sessionKey = "default"): 
         const current = nextItems[index]!;
         nextItems[index] = {
           ...applyStatus(current, update.status, timestamp),
-          ...(update.message !== undefined ? { message: update.message } : {}),
           ...(update.artifact_paths !== undefined ? { artifactPaths: update.artifact_paths } : {}),
         };
       }

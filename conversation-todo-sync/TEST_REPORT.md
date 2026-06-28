@@ -121,7 +121,7 @@ gateway ready
 GET /plugins/conversation-todo-sync/todos/<todoId>/status
 ```
 
-返回完整 `TodoList`，包含整体状态和每个 item 的 `status`、`message`、`startedAt`、`completedAt`、`artifactPaths`：
+返回完整 `TodoList`，包含整体状态和每个 item 的 `status`、`startedAt`、`completedAt`、`artifactPaths`：
 
 ```json
 {
@@ -131,8 +131,7 @@ GET /plugins/conversation-todo-sync/todos/<todoId>/status
     {
       "id": "menu",
       "title": "制定每日菜单",
-      "status": "completed",
-      "message": "已完成"
+      "status": "completed"
     }
   ]
 }

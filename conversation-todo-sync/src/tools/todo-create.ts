@@ -48,7 +48,6 @@ function normalizeItems(items: TodoItemInput[] | undefined): TodoItem[] {
       status: "pending",
       startedAt: null,
       completedAt: null,
-      message: "",
       artifactPaths: [],
     };
   });

@@ -6,6 +6,30 @@ const fileWriteQueues = new Map();
 function emptyState() {
     return { version: 1, todos: [] };
 }
+function normalizeTodoItem(item) {
+    const { message: _message, ...rest } = item;
+    return {
+        id: rest.id ?? "",
+        title: rest.title ?? "",
+        description: rest.description ?? "",
+        status: rest.status ?? "pending",
+        startedAt: rest.startedAt ?? null,
+        completedAt: rest.completedAt ?? null,
+        artifactPaths: Array.isArray(rest.artifactPaths) ? rest.artifactPaths : [],
+    };
+}
+function normalizeTodo(todo) {
+    return {
+        todoId: todo.todoId ?? "",
+        sessionKey: todo.sessionKey ?? "",
+        task: todo.task ?? "",
+        status: todo.status ?? "pending",
+        items: Array.isArray(todo.items) ? todo.items.map(normalizeTodoItem) : [],
+        createdAt: todo.createdAt ?? "",
+        updatedAt: todo.updatedAt ?? "",
+        ...(todo.closedAt ? { closedAt: todo.closedAt } : {}),
+    };
+}
 export function normalizeSessionKey(sessionKey) {
     const normalized = sessionKey?.trim();
     return normalized || "default";
@@ -101,9 +125,7 @@ export async function writeTodoState(stateDir, state) {
 }
 export async function readTodo(stateDir, todoId) {
     const raw = await fs.readFile(getTodoPath(stateDir, todoId), "utf-8");
-    const todo = JSON.parse(raw);
-    todo.sessionKey ??= "";
-    return todo;
+    return normalizeTodo(JSON.parse(raw));
 }
 export function summarizeTodo(stateDir, todo) {
     return {

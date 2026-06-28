@@ -163,7 +163,6 @@ describe("conversation-todo-sync", () => {
           {
             item_id: "analysis",
             status: "completed",
-            message: "Analysis done",
             artifact_paths: ["/tmp/analysis.md"],
           },
         ],
@@ -172,7 +171,6 @@ describe("conversation-todo-sync", () => {
 
     const item = updated.todo.items[0];
     assert.equal(item.status, "completed");
-    assert.equal(item.message, "Analysis done");
     assert.deepEqual(item.artifactPaths, ["/tmp/analysis.md"]);
     assert.equal(typeof item.startedAt, "string");
     assert.equal(typeof item.completedAt, "string");
@@ -227,7 +225,6 @@ describe("conversation-todo-sync", () => {
             {
               item_index: 1,
               status: index % 2 === 0 ? "in_progress" : "completed",
-              message: `update-${index}`,
             },
           ],
         }),
@@ -253,7 +250,7 @@ describe("conversation-todo-sync", () => {
       todo_id: created.todoId,
       updates: [
         { item_index: 1, status: "completed" },
-        { item_index: 2, status: "failed", message: "Review unavailable but documented" },
+        { item_index: 2, status: "failed" },
       ],
     });
 
@@ -342,5 +339,29 @@ describe("conversation-todo-sync", () => {
       "/plugins/conversation-todo-sync/todos/..%2Foutside/status",
     );
     assert.equal(invalidResponse.statusCode, 400);
+  });
+
+  it("omits legacy item message fields from todo status responses", async () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Poll legacy todo state",
+        items: ["One"],
+      }),
+    );
+
+    const todoPath = getTodoPath(tmpDir, created.todoId);
+    const legacyTodo = JSON.parse(await fs.readFile(todoPath, "utf-8"));
+    legacyTodo.items[0].message = "legacy detail";
+    await fs.writeFile(todoPath, `${JSON.stringify(legacyTodo, null, 2)}\n`, "utf-8");
+
+    const statusResponse = await resolveTodoHttpResponse(
+      tmpDir,
+      "GET",
+      `/plugins/conversation-todo-sync/todos/${created.todoId}/status`,
+    );
+
+    assert.equal(statusResponse.statusCode, 200);
+    assert.equal("message" in (statusResponse.body as any).items[0], false);
   });
 });

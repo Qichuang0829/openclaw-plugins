@@ -27,7 +27,6 @@ export type TodoItem = {
   status: TodoItemStatus;
   startedAt: string | null;
   completedAt: string | null;
-  message: string;
   artifactPaths: string[];
 };
 

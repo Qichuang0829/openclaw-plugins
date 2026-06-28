@@ -87,14 +87,15 @@ type TodoStatus = "pending" | "running" | "completed" | "failed";
 type TodoItem = {
   id: string;
   title: string;
+  description: string;
   status: TodoItemStatus;
-  message?: string;
-  artifactPaths?: string[];
-  updatedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  artifactPaths: string[];
 };
 ```
 
-这是用户可理解的一个 todo 项。`message` 用于保存简短状态说明，`artifactPaths` 用于关联生成的本地文件，例如清单、表格、报告。
+这是用户可理解的一个 todo 项。`artifactPaths` 用于关联生成的本地文件，例如清单、表格、报告。
 
 ### TodoList
 
@@ -185,13 +186,11 @@ type PersistedTodoState = {
   "updates": [
     {
       "item_index": 0,
-      "status": "completed",
-      "message": "已按两个成人和一个孩子设计。"
+      "status": "completed"
     },
     {
       "item_index": 1,
-      "status": "in_progress",
-      "message": "正在整理菜单和采购清单。"
+      "status": "in_progress"
     }
   ]
 }

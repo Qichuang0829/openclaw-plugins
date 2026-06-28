@@ -7,12 +7,40 @@ import {
   TODO_DIR_NAME,
   TODO_FILE,
 } from "./constants.js";
-import type { PersistedTodoState, TodoList, TodoSummary } from "./types.js";
+import type { PersistedTodoState, TodoItem, TodoList, TodoSummary } from "./types.js";
 
 const fileWriteQueues = new Map<string, Promise<void>>();
 
 function emptyState(): PersistedTodoState {
   return { version: 1, todos: [] };
+}
+
+type LegacyTodoItem = Partial<TodoItem> & { message?: unknown };
+
+function normalizeTodoItem(item: LegacyTodoItem): TodoItem {
+  const { message: _message, ...rest } = item;
+  return {
+    id: rest.id ?? "",
+    title: rest.title ?? "",
+    description: rest.description ?? "",
+    status: rest.status ?? "pending",
+    startedAt: rest.startedAt ?? null,
+    completedAt: rest.completedAt ?? null,
+    artifactPaths: Array.isArray(rest.artifactPaths) ? rest.artifactPaths : [],
+  };
+}
+
+function normalizeTodo(todo: Partial<TodoList> & { items?: LegacyTodoItem[] }): TodoList {
+  return {
+    todoId: todo.todoId ?? "",
+    sessionKey: todo.sessionKey ?? "",
+    task: todo.task ?? "",
+    status: todo.status ?? "pending",
+    items: Array.isArray(todo.items) ? todo.items.map(normalizeTodoItem) : [],
+    createdAt: todo.createdAt ?? "",
+    updatedAt: todo.updatedAt ?? "",
+    ...(todo.closedAt ? { closedAt: todo.closedAt } : {}),
+  };
 }
 
 export function normalizeSessionKey(sessionKey: string | undefined): string {
@@ -124,9 +152,7 @@ export async function writeTodoState(stateDir: string, state: PersistedTodoState
 
 export async function readTodo(stateDir: string, todoId: string): Promise<TodoList> {
   const raw = await fs.readFile(getTodoPath(stateDir, todoId), "utf-8");
-  const todo = JSON.parse(raw) as TodoList;
-  todo.sessionKey ??= "";
-  return todo;
+  return normalizeTodo(JSON.parse(raw));
 }
 
 export function summarizeTodo(stateDir: string, todo: TodoList): TodoSummary {

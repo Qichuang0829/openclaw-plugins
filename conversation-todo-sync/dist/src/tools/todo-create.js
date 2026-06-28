@@ -25,7 +25,6 @@ function normalizeItems(items) {
             status: "pending",
             startedAt: null,
             completedAt: null,
-            message: "",
             artifactPaths: [],
         };
     });

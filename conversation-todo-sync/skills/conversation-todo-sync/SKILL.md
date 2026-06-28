@@ -71,7 +71,7 @@ astronclaw_todo_get()
 astronclaw_todo_update(
   todo_id: "release-checklist-a1b2c3",
   updates: [
-    { item_id: "inspect", status: "completed", message: "Repository state inspected." }
+    { item_id: "inspect", status: "completed" }
   ]
 )
 ```
