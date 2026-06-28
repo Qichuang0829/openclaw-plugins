@@ -1,0 +1,35 @@
+{
+  "name": "@openclaw/conversation-todo-sync",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenClaw plugin for synchronized conversation todo state.",
+  "type": "module",
+  "main": "dist/index.js",
+  "files": [
+    "index.ts",
+    "src/",
+    "dist/",
+    "skills/",
+    "openclaw.plugin.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:test": "tsc -p tsconfig.test.json",
+    "test": "npm run build && npm run build:test && node --test dist-test/tests/*.test.js"
+  },
+  "dependencies": {
+    "typebox": "1.1.37"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "typescript": "^5.8.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "runtimeExtensions": [
+      "./dist/index.js"
+    ]
+  }
+}

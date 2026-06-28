@@ -1,0 +1,23 @@
+{
+  "id": "conversation-todo-sync",
+  "name": "Conversation Todo Sync",
+  "description": "Synchronize conversation todo/checklist state for multi-step tasks so UI and HTTP clients can show current user-visible todo status.",
+  "enabledByDefault": true,
+  "activation": {
+    "onStartup": true
+  },
+  "skills": ["./skills"],
+  "contracts": {
+    "tools": [
+      "astronclaw_todo_create",
+      "astronclaw_todo_update",
+      "astronclaw_todo_complete",
+      "astronclaw_todo_get"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
