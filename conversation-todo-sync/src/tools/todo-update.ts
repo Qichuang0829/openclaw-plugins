@@ -1,4 +1,3 @@
-import { Type } from "typebox";
 import {
   readTodo,
   todoBelongsToSession,
@@ -9,46 +8,57 @@ import {
 import type { AnyAgentTool, TodoItem, TodoItemStatus, TodoStatus } from "../types.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
 
-const TodoItemStatusSchema = Type.Union([
-  Type.Literal("pending"),
-  Type.Literal("in_progress"),
-  Type.Literal("completed"),
-  Type.Literal("failed"),
-]);
-
-const UpdateSchema = Type.Object(
-  {
-    item_id: Type.Optional(Type.String({ description: "Todo item ID to update." })),
-    item_index: Type.Optional(Type.Number({ description: "1-based todo item index to update." })),
-    status: TodoItemStatusSchema,
-    artifact_paths: Type.Optional(
-      Type.Array(Type.String(), { description: "Artifact paths or URLs associated with this todo item." }),
-    ),
+const UpdateSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    item_id: { type: "string", description: "Todo item ID to update." },
+    item_index: { type: "number", description: "1-based todo item index to update." },
+    status: {
+      type: "string",
+      enum: ["pending", "in_progress", "completed", "failed"],
+      description: "New todo item status.",
+    },
+    artifact_paths: {
+      type: "array",
+      description: "Artifact paths or URLs associated with this todo item.",
+      items: { type: "string" },
+    },
   },
-  { additionalProperties: false },
-);
+  required: ["status"],
+} as const;
 
-const AppendItemSchema = Type.Object(
-  {
-    id: Type.Optional(Type.String({ description: "Stable todo item ID. Defaults to item-N." })),
-    title: Type.String({ description: "Short user-visible todo item title." }),
-    description: Type.Optional(Type.String({ description: "Optional todo item details." })),
+const AppendItemSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    id: { type: "string", description: "Stable todo item ID. Defaults to item-N." },
+    title: { type: "string", description: "Short user-visible todo item title." },
+    description: { type: "string", description: "Optional todo item details." },
   },
-  { additionalProperties: false },
-);
+  required: ["title"],
+} as const;
 
-const TodoUpdateSchema = Type.Object(
-  {
-    todo_id: Type.String({ description: "Todo ID returned by astronclaw_todo_create." }),
-    updates: Type.Optional(Type.Array(UpdateSchema, { description: "Todo item status updates to apply." })),
-    append_items: Type.Optional(
-      Type.Array(Type.Union([Type.String(), AppendItemSchema]), {
-        description: "Optional new todo items to append when the task scope changes.",
-      }),
-    ),
+const TodoUpdateSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    todo_id: { type: "string", description: "Todo ID returned by astronclaw_todo_create." },
+    updates: {
+      type: "array",
+      description: "Todo item status updates to apply.",
+      items: UpdateSchema,
+    },
+    append_items: {
+      type: "array",
+      description: "Optional new todo items to append when the task scope changes.",
+      items: {
+        anyOf: [{ type: "string" }, AppendItemSchema],
+      },
+    },
   },
-  { additionalProperties: false },
-);
+  required: ["todo_id"],
+} as const;
 
 type TodoItemInput = string | { id?: string; title: string; description?: string };
 type TodoUpdateParams = {

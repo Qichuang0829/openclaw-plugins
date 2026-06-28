@@ -1,9 +1,12 @@
-import { Type } from "typebox";
 import { readTodo, readTodoSummaries, todoBelongsToSession, validateTodoId } from "../todo-state.js";
 import { jsonResult } from "../tool-utils.js";
-const TodoGetSchema = Type.Object({
-    todo_id: Type.Optional(Type.String({ description: "Todo ID to read. If omitted, lists todo summaries." })),
-}, { additionalProperties: false });
+const TodoGetSchema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        todo_id: { type: "string", description: "Todo ID to read. If omitted, lists todo summaries." },
+    },
+};
 export function createTodoGetTool(stateDir, sessionKey = "default") {
     return {
         name: "astronclaw_todo_get",

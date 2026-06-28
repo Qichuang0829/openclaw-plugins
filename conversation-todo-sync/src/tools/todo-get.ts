@@ -1,14 +1,14 @@
-import { Type } from "typebox";
 import { readTodo, readTodoSummaries, todoBelongsToSession, validateTodoId } from "../todo-state.js";
 import type { AnyAgentTool } from "../types.js";
 import { jsonResult } from "../tool-utils.js";
 
-const TodoGetSchema = Type.Object(
-  {
-    todo_id: Type.Optional(Type.String({ description: "Todo ID to read. If omitted, lists todo summaries." })),
+const TodoGetSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    todo_id: { type: "string", description: "Todo ID to read. If omitted, lists todo summaries." },
   },
-  { additionalProperties: false },
-);
+} as const;
 
 type TodoGetParams = {
   todo_id?: string;

@@ -1,4 +1,3 @@
-import { Type } from "typebox";
 import {
   readTodo,
   todoBelongsToSession,
@@ -9,12 +8,14 @@ import {
 import type { AnyAgentTool, TodoList } from "../types.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
 
-const TodoCompleteSchema = Type.Object(
-  {
-    todo_id: Type.String({ description: "Todo ID returned by astronclaw_todo_create." }),
+const TodoCompleteSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    todo_id: { type: "string", description: "Todo ID returned by astronclaw_todo_create." },
   },
-  { additionalProperties: false },
-);
+  required: ["todo_id"],
+} as const;
 
 type TodoCompleteParams = {
   todo_id: string;

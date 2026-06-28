@@ -1,9 +1,13 @@
-import { Type } from "typebox";
 import { readTodo, todoBelongsToSession, updateTodoSummary, validateTodoId, writeTodo, } from "../todo-state.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
-const TodoCompleteSchema = Type.Object({
-    todo_id: Type.String({ description: "Todo ID returned by astronclaw_todo_create." }),
-}, { additionalProperties: false });
+const TodoCompleteSchema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        todo_id: { type: "string", description: "Todo ID returned by astronclaw_todo_create." },
+    },
+    required: ["todo_id"],
+};
 export function createTodoCompleteTool(stateDir, sessionKey = "default") {
     return {
         name: "astronclaw_todo_complete",

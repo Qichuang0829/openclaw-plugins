@@ -1,34 +1,37 @@
-import { Type } from "typebox";
 import { createTodoIdFromBase, createTodoWorkspace } from "../todo-state.js";
 import type { AnyAgentTool, TodoItem, TodoList } from "../types.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
 
-const TodoItemObjectSchema = Type.Object(
-  {
-    id: Type.Optional(Type.String({ description: "Stable todo item ID. Defaults to item-N." })),
-    title: Type.String({ description: "Short user-visible todo item title." }),
-    description: Type.Optional(Type.String({ description: "Optional todo item details." })),
+const TodoItemObjectSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    id: { type: "string", description: "Stable todo item ID. Defaults to item-N." },
+    title: { type: "string", description: "Short user-visible todo item title." },
+    description: { type: "string", description: "Optional todo item details." },
   },
-  { additionalProperties: false },
-);
+  required: ["title"],
+} as const;
 
-const TodoCreateSchema = Type.Object(
-  {
-    todo_id: Type.Optional(
-      Type.String({
-        description:
-          "Optional base todo ID. Must be lowercase alphanumeric with hyphens; a random suffix is appended.",
-      }),
-    ),
-    task: Type.String({ description: "Original user task represented by this conversation todo list." }),
-    items: Type.Optional(
-      Type.Array(Type.Union([Type.String(), TodoItemObjectSchema]), {
-        description: "Initial todo items. Strings become item titles; objects can include id/title/description.",
-      }),
-    ),
+const TodoCreateSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    todo_id: {
+      type: "string",
+      description: "Optional base todo ID. Must be lowercase alphanumeric with hyphens; a random suffix is appended.",
+    },
+    task: { type: "string", description: "Original user task represented by this conversation todo list." },
+    items: {
+      type: "array",
+      description: "Initial todo items. Strings become item titles; objects can include id/title/description.",
+      items: {
+        anyOf: [{ type: "string" }, TodoItemObjectSchema],
+      },
+    },
   },
-  { additionalProperties: false },
-);
+  required: ["task"],
+} as const;
 
 type TodoItemInput = string | { id?: string; title: string; description?: string };
 type TodoCreateParams = {
