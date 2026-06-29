@@ -4,7 +4,7 @@ import { createTodoCreateTool } from "./src/tools/todo-create.js";
 import { createTodoGetTool } from "./src/tools/todo-get.js";
 import { createTodoUpdateTool } from "./src/tools/todo-update.js";
 import { createTodoHttpHandler } from "./src/http.js";
-import { normalizeSessionKey } from "./src/todo-state.js";
+import { normalizeSessionId } from "./src/todo-state.js";
 
 function resolveStateDir(api: any): string {
   const fromRuntime = api?.runtime?.state?.resolveStateDir?.();
@@ -23,19 +23,19 @@ const plugin = {
     const stateDir = resolveStateDir(api);
 
     api.registerTool(
-      (ctx: any) => createTodoCreateTool(stateDir, normalizeSessionKey(ctx?.sessionKey)),
+      (ctx: any) => createTodoCreateTool(stateDir, normalizeSessionId(ctx?.sessionId)),
       { name: "astronclaw_todo_create" },
     );
     api.registerTool(
-      (ctx: any) => createTodoUpdateTool(stateDir, normalizeSessionKey(ctx?.sessionKey)),
+      (ctx: any) => createTodoUpdateTool(stateDir, normalizeSessionId(ctx?.sessionId)),
       { name: "astronclaw_todo_update" },
     );
     api.registerTool(
-      (ctx: any) => createTodoCompleteTool(stateDir, normalizeSessionKey(ctx?.sessionKey)),
+      (ctx: any) => createTodoCompleteTool(stateDir, normalizeSessionId(ctx?.sessionId)),
       { name: "astronclaw_todo_complete" },
     );
     api.registerTool(
-      (ctx: any) => createTodoGetTool(stateDir, normalizeSessionKey(ctx?.sessionKey)),
+      (ctx: any) => createTodoGetTool(stateDir, normalizeSessionId(ctx?.sessionId)),
       { name: "astronclaw_todo_get" },
     );
 

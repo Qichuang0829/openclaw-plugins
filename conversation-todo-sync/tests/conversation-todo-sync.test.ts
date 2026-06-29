@@ -3,11 +3,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, beforeEach, afterEach } from "node:test";
+import { DEFAULT_SESSION_ID } from "../src/constants.js";
 import { createTodoHttpHandler, resolveTodoHttpResponse } from "../src/http.js";
 import {
+  getSessionPath,
   getTodoPath,
   readTodo,
-  readTodoState,
+  readTodoSummaries,
 } from "../src/todo-state.js";
 import { createTodoCompleteTool } from "../src/tools/todo-complete.js";
 import { createTodoCreateTool } from "../src/tools/todo-create.js";
@@ -17,6 +19,10 @@ import { createTodoUpdateTool } from "../src/tools/todo-update.js";
 function parseToolResult(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0]!.text);
 }
+
+const SESSION_A = "11111111-1111-1111-1111-111111111111";
+const SESSION_B = "22222222-2222-2222-2222-222222222222";
+const UNKNOWN_SESSION = "33333333-3333-3333-3333-333333333333";
 
 describe("conversation-todo-sync", () => {
   let tmpDir: string;
@@ -41,21 +47,29 @@ describe("conversation-todo-sync", () => {
     assert.equal(result.success, true);
     assert.match(result.todoId, /^todo-[0-9a-f]{6}$/);
 
-    const todo = await readTodo(tmpDir, result.todoId);
+    const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, result.todoId);
     assert.equal(todo.task, "Build a release checklist");
+    assert.equal(todo.sessionId, DEFAULT_SESSION_ID);
+    assert.equal("sessionKey" in todo, false);
     assert.equal(todo.status, "running");
     assert.equal(todo.items.length, 2);
     assert.equal(todo.items[0].id, "item-1");
     assert.equal(todo.items[1].description, "Run focused verification");
 
-    await fs.access(getTodoPath(tmpDir, result.todoId));
-    const state = await readTodoState(tmpDir);
-    assert.equal(state.todos.length, 1);
-    assert.equal(state.todos[0]!.todoId, result.todoId);
-    assert.equal(state.todos[0]!.itemCount, 2);
-    assert.equal(state.todos[0]!.pendingItemCount, 2);
-    assert.equal(state.todos[0]!.completedItemCount, 0);
-    assert.equal(state.todos[0]!.failedItemCount, 0);
+    await fs.access(getTodoPath(tmpDir, DEFAULT_SESSION_ID, result.todoId));
+    const sessionPath = getSessionPath(tmpDir, DEFAULT_SESSION_ID);
+    const session = JSON.parse(await fs.readFile(sessionPath, "utf-8"));
+    assert.equal(path.basename(path.dirname(sessionPath)), DEFAULT_SESSION_ID);
+    assert.equal(session.sessionId, DEFAULT_SESSION_ID);
+    assert.equal("sessionKey" in session, false);
+
+    const summaries = await readTodoSummaries(tmpDir, DEFAULT_SESSION_ID);
+    assert.equal(summaries.length, 1);
+    assert.equal(summaries[0]!.todoId, result.todoId);
+    assert.equal(summaries[0]!.itemCount, 2);
+    assert.equal(summaries[0]!.pendingItemCount, 2);
+    assert.equal(summaries[0]!.completedItemCount, 0);
+    assert.equal(summaries[0]!.failedItemCount, 0);
   });
 
   it("creates todo IDs from an optional base ID", async () => {
@@ -98,18 +112,18 @@ describe("conversation-todo-sync", () => {
     };
 
     const handled = await handler(
-      { method: "GET", url: "/plugins/conversation-todo-sync/todos/not-a-valid-id/status" } as any,
+      { method: "GET", url: "/plugins/conversation-todo-sync/todos" } as any,
       res as any,
     );
 
     assert.equal(handled, true);
     assert.equal(res.statusCode, 400);
-    assert.match(res.body, /todo_id must be lowercase/);
+    assert.match(res.body, /session_id is required/);
   });
 
-  it("isolates todo lists and updates by session key", async () => {
-    const sessionA = "conversation-a";
-    const sessionB = "conversation-b";
+  it("isolates todo lists and updates by session id", async () => {
+    const sessionA = SESSION_A;
+    const sessionB = SESSION_B;
     const createTool = createTodoCreateTool(tmpDir, sessionA);
     const getForA = createTodoGetTool(tmpDir, sessionA);
     const getForB = createTodoGetTool(tmpDir, sessionB);
@@ -121,7 +135,8 @@ describe("conversation-todo-sync", () => {
         items: ["One"],
       }),
     );
-    assert.equal(created.todo.sessionKey, sessionA);
+    assert.equal(created.todo.sessionId, sessionA);
+    assert.equal("sessionKey" in created.todo, false);
 
     const listA = parseToolResult(await getForA.execute("call-2", {}));
     const listB = parseToolResult(await getForB.execute("call-3", {}));
@@ -134,7 +149,7 @@ describe("conversation-todo-sync", () => {
         updates: [{ item_index: 1, status: "completed" }],
       }),
     );
-    assert.match(crossSessionUpdate.error, /not available in this session/);
+    assert.match(crossSessionUpdate.error, /not found|not available in this session/);
   });
 
   it("updates item status timestamps and appends late todo items", async () => {
@@ -175,9 +190,9 @@ describe("conversation-todo-sync", () => {
     assert.equal(typeof item.startedAt, "string");
     assert.equal(typeof item.completedAt, "string");
 
-    const state = await readTodoState(tmpDir);
-    assert.equal(state.todos[0]!.itemCount, 1);
-    assert.equal(state.todos[0]!.completedItemCount, 1);
+    const summaries = await readTodoSummaries(tmpDir, DEFAULT_SESSION_ID);
+    assert.equal(summaries[0]!.itemCount, 1);
+    assert.equal(summaries[0]!.completedItemCount, 1);
   });
 
   it("keeps todo.json readable after repeated updates", async () => {
@@ -199,11 +214,11 @@ describe("conversation-todo-sync", () => {
         todo_id: created.todoId,
         updates: [{ item_index: index, status: "completed" }],
       });
-      const raw = await fs.readFile(getTodoPath(tmpDir, created.todoId), "utf-8");
+      const raw = await fs.readFile(getTodoPath(tmpDir, DEFAULT_SESSION_ID, created.todoId), "utf-8");
       assert.doesNotThrow(() => JSON.parse(raw));
     }
 
-    const todo = await readTodo(tmpDir, created.todoId);
+    const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
     assert.equal(todo.items.every((item) => item.status === "completed"), true);
   });
 
@@ -231,7 +246,7 @@ describe("conversation-todo-sync", () => {
       ),
     );
 
-    const raw = await fs.readFile(getTodoPath(tmpDir, created.todoId), "utf-8");
+    const raw = await fs.readFile(getTodoPath(tmpDir, DEFAULT_SESSION_ID, created.todoId), "utf-8");
     assert.doesNotThrow(() => JSON.parse(raw));
   });
 
@@ -263,15 +278,15 @@ describe("conversation-todo-sync", () => {
     assert.equal(completed.success, true);
     assert.equal(completed.status, "failed");
 
-    const todo = await readTodo(tmpDir, created.todoId);
+    const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
     assert.equal(todo.status, "failed");
     assert.equal(typeof todo.closedAt, "string");
 
-    const state = await readTodoState(tmpDir);
-    assert.equal(state.todos[0]!.status, "failed");
-    assert.equal(state.todos[0]!.completedItemCount, 1);
-    assert.equal(state.todos[0]!.failedItemCount, 1);
-    assert.equal(typeof state.todos[0]!.closedAt, "string");
+    const summaries = await readTodoSummaries(tmpDir, DEFAULT_SESSION_ID);
+    assert.equal(summaries[0]!.status, "failed");
+    assert.equal(summaries[0]!.completedItemCount, 1);
+    assert.equal(summaries[0]!.failedItemCount, 1);
+    assert.equal(typeof summaries[0]!.closedAt, "string");
   });
 
   it("rejects completion when items are incomplete", async () => {
@@ -291,11 +306,11 @@ describe("conversation-todo-sync", () => {
     );
 
     assert.match(completed.error, /Cannot complete todo/);
-    const todo = await readTodo(tmpDir, created.todoId);
+    const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
     assert.equal(todo.status, "running");
   });
 
-  it("serves todo status by todoId over the HTTP resolver", async () => {
+  it("serves session todos over the HTTP resolver", async () => {
     const createTool = createTodoCreateTool(tmpDir);
     const created = parseToolResult(
       await createTool.execute("call-1", {
@@ -307,38 +322,51 @@ describe("conversation-todo-sync", () => {
     const statusResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      `/plugins/conversation-todo-sync/todos/${created.todoId}/status`,
+      `/plugins/conversation-todo-sync/todos?session_id=${DEFAULT_SESSION_ID}`,
     );
     assert.equal(statusResponse.statusCode, 200);
-    assert.equal((statusResponse.body as any).todoId, created.todoId);
+    assert.equal((statusResponse.body as any).sessionId, DEFAULT_SESSION_ID);
+    assert.equal((statusResponse.body as any).todos[0].todoId, created.todoId);
 
-    const detailResponse = await resolveTodoHttpResponse(
+    const oldStatusResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      `/plugins/conversation-todo-sync/todos/${created.todoId}`,
+      `/plugins/conversation-todo-sync/todos/${created.todoId}/status`,
     );
-    assert.equal(detailResponse.statusCode, 404);
+    assert.equal(oldStatusResponse.statusCode, 404);
 
-    const listResponse = await resolveTodoHttpResponse(
+    const missingSessionKeyResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
       "/plugins/conversation-todo-sync/todos",
     );
-    assert.equal(listResponse.statusCode, 404);
+    assert.equal(missingSessionKeyResponse.statusCode, 400);
 
-    const missingResponse = await resolveTodoHttpResponse(
+    const emptySessionResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      "/plugins/conversation-todo-sync/todos/does-not-exist-abcdef/status",
+      `/plugins/conversation-todo-sync/todos?session_id=${UNKNOWN_SESSION}`,
     );
-    assert.equal(missingResponse.statusCode, 404);
+    assert.equal(emptySessionResponse.statusCode, 200);
+    assert.deepEqual((emptySessionResponse.body as any).todos, []);
 
-    const invalidResponse = await resolveTodoHttpResponse(
+    const invalidSessionResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      "/plugins/conversation-todo-sync/todos/..%2Foutside/status",
+      "/plugins/conversation-todo-sync/todos?session_id=not-a-uuid",
     );
-    assert.equal(invalidResponse.statusCode, 400);
+    assert.equal(invalidSessionResponse.statusCode, 400);
+  });
+
+  it("rejects legacy session_key HTTP requests", async () => {
+    const statusResponse = await resolveTodoHttpResponse(
+      tmpDir,
+      "GET",
+      "/plugins/conversation-todo-sync/todos?session_key=agent%3Amain%3Aexplicit%3A44444444-4444-4444-4444-444444444444",
+    );
+
+    assert.equal(statusResponse.statusCode, 400);
+    assert.equal((statusResponse.body as any).error, "session_id is required");
   });
 
   it("omits legacy item message fields from todo status responses", async () => {
@@ -350,7 +378,7 @@ describe("conversation-todo-sync", () => {
       }),
     );
 
-    const todoPath = getTodoPath(tmpDir, created.todoId);
+    const todoPath = getTodoPath(tmpDir, DEFAULT_SESSION_ID, created.todoId);
     const legacyTodo = JSON.parse(await fs.readFile(todoPath, "utf-8"));
     legacyTodo.items[0].message = "legacy detail";
     await fs.writeFile(todoPath, `${JSON.stringify(legacyTodo, null, 2)}\n`, "utf-8");
@@ -358,10 +386,10 @@ describe("conversation-todo-sync", () => {
     const statusResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      `/plugins/conversation-todo-sync/todos/${created.todoId}/status`,
+      `/plugins/conversation-todo-sync/todos?session_id=${DEFAULT_SESSION_ID}`,
     );
 
     assert.equal(statusResponse.statusCode, 200);
-    assert.equal("message" in (statusResponse.body as any).items[0], false);
+    assert.equal("message" in (statusResponse.body as any).todos[0].items[0], false);
   });
 });

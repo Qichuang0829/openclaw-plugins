@@ -11,7 +11,7 @@
 
 - 单元测试：11/11 通过。
 - OpenClaw 插件检查：`openclaw plugins doctor` 无问题。
-- HTTP 路由：单一前端状态接口、非法 `todoId`、未知 `todoId`、不支持方法均按预期返回。
+- HTTP 路由：单一前端会话 todo 列表接口、缺少 `session_id`、未知 session、不支持方法均按预期返回。
 - 5 个日常任务调试集：5/5 通过。
 - 20 个最终验收任务：20/20 通过。
 - 复杂新任务会创建、更新并关闭 todo。
@@ -52,7 +52,7 @@ gateway ready
 - 工具序列包含 `astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_complete`。
 - 不在 `astronclaw_todo_create` 前固定调用 `astronclaw_todo_get`。
 - 当前 session 新增 1 个 todo。
-- HTTP 状态接口能按 `todoId` 读取该 todo。
+- HTTP 状态接口能按 `session_id` 读取该会话下的 todo。
 - todo 最终 `status` 为 `completed`。
 - `pendingItemCount` 为 0，`completedItemCount` 等于事项总数。
 - 最终回复不泄漏内部工具和文件名。
@@ -118,20 +118,25 @@ gateway ready
 前端状态接口：
 
 ```http
-GET /plugins/conversation-todo-sync/todos/<todoId>/status
+GET /plugins/conversation-todo-sync/todos?session_id=<sessionId>
 ```
 
-返回完整 `TodoList`，包含整体状态和每个 item 的 `status`、`startedAt`、`completedAt`、`artifactPaths`：
+返回该 session 下的完整 `TodoList[]`，每个 todo 包含整体状态和每个 item 的 `status`、`startedAt`、`completedAt`、`artifactPaths`：
 
 ```json
 {
-  "todoId": "family-dinners-c36fd4",
-  "status": "completed",
-  "items": [
+  "sessionId": "35e2872a-2f6a-45ff-80be-a9a6aaa7401c",
+  "todos": [
     {
-      "id": "menu",
-      "title": "制定每日菜单",
-      "status": "completed"
+      "todoId": "family-dinners-c36fd4",
+      "status": "completed",
+      "items": [
+        {
+          "id": "menu",
+          "title": "制定每日菜单",
+          "status": "completed"
+        }
+      ]
     }
   ]
 }
@@ -139,9 +144,8 @@ GET /plugins/conversation-todo-sync/todos/<todoId>/status
 
 前端轮询规则：
 
-- 前端从上游消息事件或工具结果拿到 `todoId`。
-- 前端只轮询 `GET /plugins/conversation-todo-sync/todos/<todoId>/status`。
-- 不传 `session_key`。
+- 前端从当前对话上下文拿到 `session_id`。
+- 前端只轮询 `GET /plugins/conversation-todo-sync/todos?session_id=<sessionId>`。
 - `pending` 或 `running` 时继续轮询。
 - `completed` 或 `failed` 时停止轮询。
 
@@ -152,5 +156,5 @@ GET /plugins/conversation-todo-sync/todos/<todoId>/status
 - 名称和语义已经从任务设计概念收敛为 todo/checklist 状态同步。
 - 工具描述和 skill 能稳定触发日常多步骤任务。
 - 新任务、简单任务、续接任务三类行为区分清晰。
-- HTTP 状态接口能按 `todoId` 表达整体状态和事项级完成度。
+- HTTP 状态接口能按 `session_id` 表达该会话下 todo 的整体状态和事项级完成度。
 - session 隔离有效，续接不会重复创建 todo。

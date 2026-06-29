@@ -1,4 +1,5 @@
-import { readTodo, todoBelongsToSession, updateTodoSummary, validateTodoId, writeTodo, } from "../todo-state.js";
+import { DEFAULT_SESSION_ID } from "../constants.js";
+import { readTodo, todoBelongsToSessionId, updateTodoSummary, validateTodoId, writeTodo, } from "../todo-state.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
 const UpdateSchema = {
     type: "object",
@@ -97,7 +98,7 @@ function deriveStatusAfterUpdate(currentStatus, items, changed) {
     }
     return changed && currentStatus === "pending" ? "running" : "pending";
 }
-export function createTodoUpdateTool(stateDir, sessionKey = "default") {
+export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astronclaw_todo_update",
         label: "Update Conversation Todo",
@@ -114,14 +115,14 @@ export function createTodoUpdateTool(stateDir, sessionKey = "default") {
             }
             let todo;
             try {
-                todo = await readTodo(stateDir, todoId);
+                todo = await readTodo(stateDir, sessionId, todoId);
             }
             catch (err) {
                 return jsonResult({
                     error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
                 });
             }
-            if (!todoBelongsToSession(todo, sessionKey)) {
+            if (!todoBelongsToSessionId(todo, sessionId)) {
                 return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
             }
             const timestamp = nowIso();

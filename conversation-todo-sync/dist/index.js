@@ -4,7 +4,7 @@ import { createTodoCreateTool } from "./src/tools/todo-create.js";
 import { createTodoGetTool } from "./src/tools/todo-get.js";
 import { createTodoUpdateTool } from "./src/tools/todo-update.js";
 import { createTodoHttpHandler } from "./src/http.js";
-import { normalizeSessionKey } from "./src/todo-state.js";
+import { normalizeSessionId } from "./src/todo-state.js";
 function resolveStateDir(api) {
     const fromRuntime = api?.runtime?.state?.resolveStateDir?.();
     if (typeof fromRuntime === "string" && fromRuntime.length > 0) {
@@ -18,10 +18,10 @@ const plugin = {
     description: "Synchronize conversation todo/checklist state for multi-step tasks so UI and HTTP clients can show current user-visible todo status.",
     register(api) {
         const stateDir = resolveStateDir(api);
-        api.registerTool((ctx) => createTodoCreateTool(stateDir, normalizeSessionKey(ctx?.sessionKey)), { name: "astronclaw_todo_create" });
-        api.registerTool((ctx) => createTodoUpdateTool(stateDir, normalizeSessionKey(ctx?.sessionKey)), { name: "astronclaw_todo_update" });
-        api.registerTool((ctx) => createTodoCompleteTool(stateDir, normalizeSessionKey(ctx?.sessionKey)), { name: "astronclaw_todo_complete" });
-        api.registerTool((ctx) => createTodoGetTool(stateDir, normalizeSessionKey(ctx?.sessionKey)), { name: "astronclaw_todo_get" });
+        api.registerTool((ctx) => createTodoCreateTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astronclaw_todo_create" });
+        api.registerTool((ctx) => createTodoUpdateTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astronclaw_todo_update" });
+        api.registerTool((ctx) => createTodoCompleteTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astronclaw_todo_complete" });
+        api.registerTool((ctx) => createTodoGetTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astronclaw_todo_get" });
         if (typeof api.registerHttpRoute === "function") {
             api.registerHttpRoute({
                 path: HTTP_BASE_PATH,

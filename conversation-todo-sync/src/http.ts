@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { HTTP_BASE_PATH } from "./constants.js";
-import { readTodo, validateTodoId } from "./todo-state.js";
+import { normalizeSessionId, readTodosForSession, validateSessionId } from "./todo-state.js";
 
 export type TodoHttpResponse = {
   statusCode: number;
@@ -9,20 +9,6 @@ export type TodoHttpResponse = {
 
 function jsonResponse(statusCode: number, body: unknown): TodoHttpResponse {
   return { statusCode, body };
-}
-
-function extractStatusTodoId(urlPath: string): string {
-  const prefix = `${HTTP_BASE_PATH}/`;
-  if (!urlPath.startsWith(prefix)) {
-    return "";
-  }
-
-  const rest = urlPath.slice(prefix.length);
-  const parts = rest.split("/").filter(Boolean);
-  if (parts.length === 2 && parts[1] === "status") {
-    return decodeURIComponent(parts[0]!);
-  }
-  return "";
 }
 
 export async function resolveTodoHttpResponse(
@@ -35,22 +21,22 @@ export async function resolveTodoHttpResponse(
   }
 
   const parsed = new URL(requestUrl ?? "/", "http://localhost");
-  const todoId = extractStatusTodoId(parsed.pathname);
-  if (todoId === "") {
+  if (parsed.pathname !== HTTP_BASE_PATH) {
     return jsonResponse(404, { error: "Route not found" });
   }
 
-  const validationError = validateTodoId(todoId);
+  const rawSessionId = parsed.searchParams.get("session_id");
+  if (rawSessionId === null || rawSessionId.trim() === "") {
+    return jsonResponse(400, { error: "session_id is required" });
+  }
+  const sessionId = normalizeSessionId(rawSessionId);
+  const validationError = validateSessionId(sessionId);
   if (validationError) {
     return jsonResponse(400, { error: validationError });
   }
 
-  try {
-    const todo = await readTodo(stateDir, todoId);
-    return jsonResponse(200, todo);
-  } catch {
-    return jsonResponse(404, { error: `Todo "${todoId}" not found` });
-  }
+  const todos = await readTodosForSession(stateDir, sessionId);
+  return jsonResponse(200, { sessionId, todos });
 }
 
 export function createTodoHttpHandler(stateDir: string) {

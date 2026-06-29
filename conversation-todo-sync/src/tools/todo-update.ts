@@ -1,6 +1,7 @@
+import { DEFAULT_SESSION_ID } from "../constants.js";
 import {
   readTodo,
-  todoBelongsToSession,
+  todoBelongsToSessionId,
   updateTodoSummary,
   validateTodoId,
   writeTodo,
@@ -126,7 +127,7 @@ function deriveStatusAfterUpdate(currentStatus: TodoStatus, items: TodoItem[], c
   return changed && currentStatus === "pending" ? "running" : "pending";
 }
 
-export function createTodoUpdateTool(stateDir: string, sessionKey = "default"): AnyAgentTool {
+export function createTodoUpdateTool(stateDir: string, sessionId = DEFAULT_SESSION_ID): AnyAgentTool {
   return {
     name: "astronclaw_todo_update",
     label: "Update Conversation Todo",
@@ -145,13 +146,13 @@ export function createTodoUpdateTool(stateDir: string, sessionKey = "default"): 
 
       let todo;
       try {
-        todo = await readTodo(stateDir, todoId);
+        todo = await readTodo(stateDir, sessionId, todoId);
       } catch (err) {
         return jsonResult({
           error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
         });
       }
-      if (!todoBelongsToSession(todo, sessionKey)) {
+      if (!todoBelongsToSessionId(todo, sessionId)) {
         return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
       }
 

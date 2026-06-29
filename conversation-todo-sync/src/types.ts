@@ -32,7 +32,7 @@ export type TodoItem = {
 
 export type TodoList = {
   todoId: string;
-  sessionKey: string;
+  sessionId: string;
   task: string;
   status: TodoStatus;
   items: TodoItem[];
@@ -40,10 +40,9 @@ export type TodoList = {
   updatedAt: string;
   closedAt?: string;
 };
-
 export type TodoSummary = {
   todoId: string;
-  sessionKey: string;
+  sessionId: string;
   task: string;
   status: TodoStatus;
   itemCount: number;
@@ -55,9 +54,4 @@ export type TodoSummary = {
   createdAt: string;
   updatedAt: string;
   closedAt?: string;
-};
-
-export type PersistedTodoState = {
-  version: 1;
-  todos: TodoSummary[];
 };

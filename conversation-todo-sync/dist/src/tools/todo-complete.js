@@ -1,4 +1,5 @@
-import { readTodo, todoBelongsToSession, updateTodoSummary, validateTodoId, writeTodo, } from "../todo-state.js";
+import { DEFAULT_SESSION_ID } from "../constants.js";
+import { readTodo, todoBelongsToSessionId, updateTodoSummary, validateTodoId, writeTodo, } from "../todo-state.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
 const TodoCompleteSchema = {
     type: "object",
@@ -8,7 +9,7 @@ const TodoCompleteSchema = {
     },
     required: ["todo_id"],
 };
-export function createTodoCompleteTool(stateDir, sessionKey = "default") {
+export function createTodoCompleteTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astronclaw_todo_complete",
         label: "Complete Conversation Todo",
@@ -25,14 +26,14 @@ export function createTodoCompleteTool(stateDir, sessionKey = "default") {
             }
             let todo;
             try {
-                todo = await readTodo(stateDir, todoId);
+                todo = await readTodo(stateDir, sessionId, todoId);
             }
             catch (err) {
                 return jsonResult({
                     error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
                 });
             }
-            if (!todoBelongsToSession(todo, sessionKey)) {
+            if (!todoBelongsToSessionId(todo, sessionId)) {
                 return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
             }
             const incomplete = todo.items.filter((item) => item.status !== "completed" && item.status !== "failed");

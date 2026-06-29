@@ -1,4 +1,5 @@
-import { readTodo, readTodoSummaries, todoBelongsToSession, validateTodoId } from "../todo-state.js";
+import { DEFAULT_SESSION_ID } from "../constants.js";
+import { readTodo, readTodoSummaries, todoBelongsToSessionId, validateTodoId } from "../todo-state.js";
 import { jsonResult } from "../tool-utils.js";
 const TodoGetSchema = {
     type: "object",
@@ -7,7 +8,7 @@ const TodoGetSchema = {
         todo_id: { type: "string", description: "Todo ID to read. If omitted, lists todo summaries." },
     },
 };
-export function createTodoGetTool(stateDir, sessionKey = "default") {
+export function createTodoGetTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astronclaw_todo_get",
         label: "Get Conversation Todo",
@@ -17,7 +18,7 @@ export function createTodoGetTool(stateDir, sessionKey = "default") {
             const todoId = params.todo_id?.trim();
             if (!todoId) {
                 return jsonResult({
-                    todos: await readTodoSummaries(stateDir, sessionKey),
+                    todos: await readTodoSummaries(stateDir, sessionId),
                 });
             }
             const validationError = validateTodoId(todoId);
@@ -25,8 +26,8 @@ export function createTodoGetTool(stateDir, sessionKey = "default") {
                 return jsonResult({ error: validationError });
             }
             try {
-                const todo = await readTodo(stateDir, todoId);
-                if (!todoBelongsToSession(todo, sessionKey)) {
+                const todo = await readTodo(stateDir, sessionId, todoId);
+                if (!todoBelongsToSessionId(todo, sessionId)) {
                     return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
                 }
                 return jsonResult({ todo });

@@ -1,3 +1,4 @@
+import { DEFAULT_SESSION_ID } from "../constants.js";
 import { createTodoIdFromBase, createTodoWorkspace } from "../todo-state.js";
 import type { AnyAgentTool, TodoItem, TodoList } from "../types.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
@@ -56,7 +57,7 @@ function normalizeItems(items: TodoItemInput[] | undefined): TodoItem[] {
   });
 }
 
-export function createTodoCreateTool(stateDir: string, sessionKey = "default"): AnyAgentTool {
+export function createTodoCreateTool(stateDir: string, sessionId = DEFAULT_SESSION_ID): AnyAgentTool {
   return {
     name: "astronclaw_todo_create",
     label: "Create Conversation Todo",
@@ -79,7 +80,7 @@ export function createTodoCreateTool(stateDir: string, sessionKey = "default"): 
 
       const todo: TodoList = {
         todoId,
-        sessionKey,
+        sessionId,
         task,
         status: params.items?.length ? "running" : "pending",
         items: normalizeItems(params.items),

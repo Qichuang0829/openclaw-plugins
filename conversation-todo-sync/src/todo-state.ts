@@ -3,19 +3,24 @@ import path from "node:path";
 import crypto from "node:crypto";
 import {
   ARTIFACTS_DIR,
-  STATE_FILE,
+  DEFAULT_SESSION_ID,
+  SESSION_FILE,
+  SESSIONS_DIR,
   TODO_DIR_NAME,
   TODO_FILE,
 } from "./constants.js";
-import type { PersistedTodoState, TodoItem, TodoList, TodoSummary } from "./types.js";
+import type { TodoItem, TodoList, TodoSummary } from "./types.js";
 
 const fileWriteQueues = new Map<string, Promise<void>>();
 
-function emptyState(): PersistedTodoState {
-  return { version: 1, todos: [] };
-}
-
 type LegacyTodoItem = Partial<TodoItem> & { message?: unknown };
+
+type TodoSessionMetadata = {
+  version: 1;
+  sessionId: string;
+  createdAt: string;
+  updatedAt: string;
+};
 
 function normalizeTodoItem(item: LegacyTodoItem): TodoItem {
   const { message: _message, ...rest } = item;
@@ -33,7 +38,7 @@ function normalizeTodoItem(item: LegacyTodoItem): TodoItem {
 function normalizeTodo(todo: Partial<TodoList> & { items?: LegacyTodoItem[] }): TodoList {
   return {
     todoId: todo.todoId ?? "",
-    sessionKey: todo.sessionKey ?? "",
+    sessionId: normalizeSessionId(todo.sessionId),
     task: todo.task ?? "",
     status: todo.status ?? "pending",
     items: Array.isArray(todo.items) ? todo.items.map(normalizeTodoItem) : [],
@@ -43,16 +48,23 @@ function normalizeTodo(todo: Partial<TodoList> & { items?: LegacyTodoItem[] }): 
   };
 }
 
-export function normalizeSessionKey(sessionKey: string | undefined): string {
-  const normalized = sessionKey?.trim();
-  return normalized || "default";
+export function normalizeSessionId(sessionId: string | undefined): string {
+  const normalized = sessionId?.trim().toLowerCase();
+  return normalized || DEFAULT_SESSION_ID;
 }
 
-export function todoBelongsToSession(
-  todo: { sessionKey?: string },
-  sessionKey: string,
+export function validateSessionId(sessionId: string): string | null {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(normalizeSessionId(sessionId))) {
+    return "session_id must be a UUID.";
+  }
+  return null;
+}
+
+export function todoBelongsToSessionId(
+  todo: { sessionId?: string },
+  sessionId: string,
 ): boolean {
-  return !todo.sessionKey || todo.sessionKey === sessionKey;
+  return normalizeSessionId(todo.sessionId) === normalizeSessionId(sessionId);
 }
 
 export function validateTodoId(todoId: string): string | null {
@@ -74,20 +86,36 @@ export function getTodosDir(stateDir: string): string {
   return path.join(stateDir, TODO_DIR_NAME);
 }
 
-export function getTodoDir(stateDir: string, todoId: string): string {
+export function getSessionsDir(stateDir: string): string {
+  return path.join(getTodosDir(stateDir), SESSIONS_DIR);
+}
+
+export function getSessionDir(stateDir: string, sessionId: string): string {
+  const validationError = validateSessionId(sessionId);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+  return path.join(getSessionsDir(stateDir), normalizeSessionId(sessionId));
+}
+
+export function getSessionPath(stateDir: string, sessionId: string): string {
+  return path.join(getSessionDir(stateDir, sessionId), SESSION_FILE);
+}
+
+export function getTodoDir(stateDir: string, sessionId: string, todoId: string): string {
   const validationError = validateTodoId(todoId);
   if (validationError) {
     throw new Error(validationError);
   }
-  return path.join(getTodosDir(stateDir), todoId);
+  return path.join(getSessionDir(stateDir, sessionId), todoId);
 }
 
-export function getTodoPath(stateDir: string, todoId: string): string {
-  return path.join(getTodoDir(stateDir, todoId), TODO_FILE);
+export function getTodoPath(stateDir: string, sessionId: string, todoId: string): string {
+  return path.join(getTodoDir(stateDir, sessionId, todoId), TODO_FILE);
 }
 
-export function getArtifactsDir(stateDir: string, todoId: string): string {
-  return path.join(getTodoDir(stateDir, todoId), ARTIFACTS_DIR);
+export function getArtifactsDir(stateDir: string, sessionId: string, todoId: string): string {
+  return path.join(getTodoDir(stateDir, sessionId, todoId), ARTIFACTS_DIR);
 }
 
 async function withFileWriteLock<T>(filePath: string, action: () => Promise<T>): Promise<T> {
@@ -124,41 +152,16 @@ async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> 
   });
 }
 
-export async function readTodoState(stateDir: string): Promise<PersistedTodoState> {
-  const filePath = path.join(getTodosDir(stateDir), STATE_FILE);
-  try {
-    const raw = await fs.readFile(filePath, "utf-8");
-    const data = JSON.parse(raw) as PersistedTodoState;
-    if (data.version === 1 && Array.isArray(data.todos)) {
-      for (const todo of data.todos) {
-        todo.sessionKey ??= "";
-      }
-      return data;
-    }
-    return emptyState();
-  } catch (err) {
-    if (err instanceof Error && (err as NodeJS.ErrnoException).code === "ENOENT") {
-      return emptyState();
-    }
-    throw err;
-  }
-}
-
-export async function writeTodoState(stateDir: string, state: PersistedTodoState): Promise<void> {
-  const todosDir = getTodosDir(stateDir);
-  await fs.mkdir(todosDir, { recursive: true });
-  await writeJsonAtomic(path.join(todosDir, STATE_FILE), state);
-}
-
-export async function readTodo(stateDir: string, todoId: string): Promise<TodoList> {
-  const raw = await fs.readFile(getTodoPath(stateDir, todoId), "utf-8");
+export async function readTodo(stateDir: string, sessionId: string, todoId: string): Promise<TodoList> {
+  const raw = await fs.readFile(getTodoPath(stateDir, sessionId, todoId), "utf-8");
   return normalizeTodo(JSON.parse(raw));
 }
 
 export function summarizeTodo(stateDir: string, todo: TodoList): TodoSummary {
+  const sessionId = normalizeSessionId(todo.sessionId);
   return {
     todoId: todo.todoId,
-    sessionKey: todo.sessionKey,
+    sessionId,
     task: todo.task,
     status: todo.status,
     itemCount: todo.items.length,
@@ -166,77 +169,98 @@ export function summarizeTodo(stateDir: string, todo: TodoList): TodoSummary {
     inProgressItemCount: todo.items.filter((item) => item.status === "in_progress").length,
     completedItemCount: todo.items.filter((item) => item.status === "completed").length,
     failedItemCount: todo.items.filter((item) => item.status === "failed").length,
-    todoPath: getTodoPath(stateDir, todo.todoId),
+    todoPath: getTodoPath(stateDir, sessionId, todo.todoId),
     createdAt: todo.createdAt,
     updatedAt: todo.updatedAt,
     ...(todo.closedAt ? { closedAt: todo.closedAt } : {}),
   };
 }
 
-function normalizeSummary(summary: Partial<TodoSummary>): TodoSummary {
-  return {
-    todoId: summary.todoId ?? "",
-    sessionKey: summary.sessionKey ?? "",
-    task: summary.task ?? "",
-    status: summary.status ?? "pending",
-    itemCount: summary.itemCount ?? 0,
-    pendingItemCount: summary.pendingItemCount ?? 0,
-    inProgressItemCount: summary.inProgressItemCount ?? 0,
-    completedItemCount: summary.completedItemCount ?? 0,
-    failedItemCount: summary.failedItemCount ?? 0,
-    todoPath: summary.todoPath ?? "",
-    createdAt: summary.createdAt ?? "",
-    updatedAt: summary.updatedAt ?? "",
-    ...(summary.closedAt ? { closedAt: summary.closedAt } : {}),
-  };
+async function touchSessionMetadata(
+  stateDir: string,
+  sessionId: string,
+  timestamp: string,
+): Promise<void> {
+  const normalized = normalizeSessionId(sessionId);
+  const sessionDir = getSessionDir(stateDir, normalized);
+  const sessionPath = getSessionPath(stateDir, normalized);
+  await fs.mkdir(sessionDir, { recursive: true });
+
+  let createdAt = timestamp;
+  try {
+    const raw = await fs.readFile(sessionPath, "utf-8");
+    const existing = JSON.parse(raw) as Partial<TodoSessionMetadata>;
+    if (existing.sessionId === normalized && typeof existing.createdAt === "string" && existing.createdAt) {
+      createdAt = existing.createdAt;
+    }
+  } catch (err) {
+    if (!(err instanceof Error) || (err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+  }
+
+  await writeJsonAtomic(sessionPath, {
+    version: 1,
+    sessionId: normalized,
+    createdAt,
+    updatedAt: timestamp,
+  } satisfies TodoSessionMetadata);
+}
+
+export async function readTodosForSession(stateDir: string, sessionId: string): Promise<TodoList[]> {
+  const normalized = normalizeSessionId(sessionId);
+  const sessionDir = getSessionDir(stateDir, normalized);
+  let entries;
+  try {
+    entries = await fs.readdir(sessionDir, { withFileTypes: true });
+  } catch (err) {
+    if (err instanceof Error && (err as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
+
+  const todos: TodoList[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    try {
+      const todo = await readTodo(stateDir, normalized, entry.name);
+      if (todoBelongsToSessionId(todo, normalized)) {
+        todos.push(todo);
+      }
+    } catch {
+      // Ignore unreadable entries so one corrupted todo does not hide the rest of the session.
+    }
+  }
+
+  return todos.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function readTodoSummaries(
   stateDir: string,
-  sessionKey?: string,
+  sessionId: string,
 ): Promise<TodoSummary[]> {
-  const state = await readTodoState(stateDir);
-  const summaries: TodoSummary[] = [];
-
-  for (const summary of state.todos) {
-    if (sessionKey && !todoBelongsToSession(summary, sessionKey)) {
-      continue;
-    }
-
-    try {
-      const todo = await readTodo(stateDir, summary.todoId);
-      if (!sessionKey || todoBelongsToSession(todo, sessionKey)) {
-        summaries.push(summarizeTodo(stateDir, todo));
-      }
-    } catch {
-      summaries.push(normalizeSummary(summary));
-    }
-  }
-
-  return summaries;
+  const todos = await readTodosForSession(stateDir, sessionId);
+  return todos.map((todo) => summarizeTodo(stateDir, todo));
 }
 
 export async function writeTodo(stateDir: string, todo: TodoList): Promise<void> {
-  const todoDir = getTodoDir(stateDir, todo.todoId);
+  const sessionId = normalizeSessionId(todo.sessionId);
+  const todoDir = getTodoDir(stateDir, sessionId, todo.todoId);
   await fs.mkdir(todoDir, { recursive: true });
-  await writeJsonAtomic(getTodoPath(stateDir, todo.todoId), todo);
+  await writeJsonAtomic(getTodoPath(stateDir, sessionId, todo.todoId), { ...todo, sessionId });
 }
 
 export async function createTodoWorkspace(stateDir: string, todo: TodoList): Promise<TodoSummary> {
-  const todoDir = getTodoDir(stateDir, todo.todoId);
-  await fs.mkdir(getArtifactsDir(stateDir, todo.todoId), { recursive: true });
-  await writeTodo(stateDir, todo);
+  const sessionId = normalizeSessionId(todo.sessionId);
+  const todoDir = getTodoDir(stateDir, sessionId, todo.todoId);
+  await fs.mkdir(getArtifactsDir(stateDir, sessionId, todo.todoId), { recursive: true });
+  await writeTodo(stateDir, { ...todo, sessionId });
+  await touchSessionMetadata(stateDir, sessionId, todo.updatedAt);
 
-  const summary = summarizeTodo(stateDir, todo);
-
-  const state = await readTodoState(stateDir);
-  const existing = state.todos.findIndex((item) => item.todoId === todo.todoId);
-  if (existing >= 0) {
-    state.todos[existing] = summary;
-  } else {
-    state.todos.push(summary);
-  }
-  await writeTodoState(stateDir, state);
+  const summary = summarizeTodo(stateDir, { ...todo, sessionId });
 
   return {
     ...summary,
@@ -248,11 +272,5 @@ export async function updateTodoSummary(
   stateDir: string,
   todo: TodoList,
 ): Promise<void> {
-  const state = await readTodoState(stateDir);
-  const summary = summarizeTodo(stateDir, todo);
-  const existing = state.todos.findIndex((item) => item.todoId === todo.todoId);
-  if (existing >= 0) {
-    state.todos[existing] = summary;
-    await writeTodoState(stateDir, state);
-  }
+  await touchSessionMetadata(stateDir, todo.sessionId, todo.updatedAt);
 }
