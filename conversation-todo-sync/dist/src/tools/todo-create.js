@@ -3,7 +3,6 @@ import { createTodoIdFromBase, createTodoWorkspace } from "../todo-state.js";
 import { jsonResult, nowIso } from "../tool-utils.js";
 const TodoItemObjectSchema = {
     type: "object",
-    additionalProperties: false,
     properties: {
         id: { type: "string", description: "Stable todo item ID. Defaults to item-N." },
         title: { type: "string", description: "Short user-visible todo item title." },
@@ -22,7 +21,7 @@ const TodoCreateSchema = {
         task: { type: "string", description: "Original user task represented by this conversation todo list." },
         items: {
             type: "array",
-            description: "Initial todo items. Strings become item titles; objects can include id/title/description.",
+            description: "Initial todo items. Strings become item titles; objects can include id/title/description. Extra object fields such as status are accepted but ignored.",
             items: {
                 anyOf: [{ type: "string" }, TodoItemObjectSchema],
             },

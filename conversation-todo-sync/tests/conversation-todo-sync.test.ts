@@ -72,6 +72,35 @@ describe("conversation-todo-sync", () => {
     assert.equal(summaries[0]!.failedItemCount, 0);
   });
 
+  it("accepts and ignores extra create item fields", async () => {
+    const tool = createTodoCreateTool(tmpDir);
+    const schema = tool.parameters as any;
+    const objectItemSchema = schema.properties.items.items.anyOf[1];
+    assert.notEqual(objectItemSchema.additionalProperties, false);
+
+    const result = parseToolResult(
+      await tool.execute("call-1", {
+        task: "Compare stocks",
+        items: [
+          {
+            id: "item-1",
+            title: "Search recent stock prices",
+            status: "in_progress",
+            artifactPaths: ["/tmp/report.md"],
+          },
+        ],
+      }),
+    );
+
+    assert.equal(result.success, true);
+    const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, result.todoId);
+    assert.equal(todo.items.length, 1);
+    assert.equal(todo.items[0].id, "item-1");
+    assert.equal(todo.items[0].title, "Search recent stock prices");
+    assert.equal(todo.items[0].status, "pending");
+    assert.equal(todo.items[0].artifactPaths.length, 0);
+  });
+
   it("creates todo IDs from an optional base ID", async () => {
     const tool = createTodoCreateTool(tmpDir);
     const result = parseToolResult(
