@@ -15,7 +15,7 @@ function resolveStateDir(api) {
 const plugin = {
     id: PLUGIN_ID,
     name: "Astron Todo Sync",
-    description: "Synchronize conversation todo/checklist state for multi-step tasks so UI and HTTP clients can show current user-visible todo status.",
+    description: "MUST create one new todo for each complex user message before search/write/edit/command tools so UI and HTTP clients can show current task progress.",
     register(api) {
         const stateDir = resolveStateDir(api);
         api.registerTool((ctx) => createTodoCreateTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astronclaw_todo_create" });

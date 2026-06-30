@@ -99,7 +99,7 @@ export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astronclaw_todo_update",
         label: "Update Conversation Todo",
-        description: "Update only the persisted todo created for the current user message after a real item starts, completes, fails, or changes. Closed todos cannot be changed; create a new todo for a later complex user message instead of reusing an earlier one. Do not mention tool names or todo IDs in user-facing messages.",
+        description: "Update only the todo created for the current user message. Never update an earlier todo for a later user message, including follow-up work like continue/supplement/resave/make a table; that later message needs astronclaw_todo_create first. Closed todos cannot be changed. Do not mention tool names or todo IDs in user-facing messages.",
         parameters: TodoUpdateSchema,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();

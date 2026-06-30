@@ -1,6 +1,6 @@
 ---
 name: astron-todo-sync
-description: 默认为每个新的复杂用户消息创建一个新的 conversation todo/checklist；复杂消息包括需要搜索、网页读取、接口查询、文件读写、代码/命令执行、生成文件、分析报告、对比分析、方案制定、排查流程或清单整理等。一个复杂用户消息对应一个新的 todo，不复用上一条 todo，也不要因为 session 中已有 running/completed todo 而跳过创建。只有问候、闲聊、单个事实、单句翻译/改写/命名/解释、纯进度询问等简单一步消息，且不需要外部工具时不要使用。
+description: MUST call astronclaw_todo_create before search/read/write/edit/command tools for every new complex user message. Complex includes analysis, report, file generation, checklist, troubleshooting, comparison, planning, and follow-up work like “继续补充并重新保存/整理成表格/再做一版”. One complex user message = one new todo; never reuse or update an earlier todo for new work. Do not create todo only for greetings, simple one-shot Q&A/translation/rewrite/naming/explanation, or pure status questions.
 ---
 
 ## 使用原则
@@ -11,17 +11,18 @@ description: 默认为每个新的复杂用户消息创建一个新的 conversat
 
 用户看到的自然语言回复应只包含任务本身的结果、结论、建议、下一步行动或必要免责声明。不要说“我已创建 todo”“我正在调用 astronclaw_todo_update”“我将调用 complete 工具”。
 
-默认使用本工具组同步 todo 状态。一个复杂用户消息对应一个新的 todo。只有当前用户消息明显不需要拆分、不会调用任何外部工具、也没有用户可见执行过程时，才可以不使用。
+默认使用本工具组同步 todo 状态。一个复杂用户消息对应一个新的 todo。复杂用户消息必须先调用 `astronclaw_todo_create`，再调用搜索、读取、写入、编辑、命令执行或其它外部工具。只有当前用户消息明显不需要拆分、不会调用任何外部工具、也没有用户可见执行过程时，才可以不使用。
 
 必须使用本工具组的场景：
 
 - 任务可以拆成 2 个以上用户可见的实际步骤。
 - 任务需要或可能需要调用搜索、网页读取、接口查询、文件读写、代码执行、命令执行、生成文件、调用其它工具等外部工具。
+- 任务需要调用 `write`、`edit` 或其它文件修改工具。必须先为当前用户消息创建新的 todo，再写入或编辑文件。
 - 任务需要查询、阅读、比较、归纳多个来源或多类信息。
 - 任务需要围绕多个对象或多个指标搜集资料并整理结论，例如多家公司股价/涨跌/市值/近期消息对比。即使用户只要求一轮完成，也必须同步 todo。
 - 任务需要先拆解，再执行，再汇总结论。
 - 任务包含准备清单、时间顺序、携带物品、注意事项、检查流程、课前/出门前/活动前准备。
-- 用户消息要求“继续、补充、重新保存、整理成表格、生成新文件、再做一版”等新的复杂执行动作。即使它引用上一轮结果，也要创建新的 todo。
+- 用户消息要求“继续、补充、重新保存、整理成表格、生成新文件、再做一版”等新的复杂执行动作。即使它引用上一轮结果，也必须创建新的 todo，不能直接编辑旧文件或更新旧 todo。
 - 用户要求“完整流程”“逐步推进”“跟踪任务”“不要一次性草率完成”。
 - 任务可能持续多轮，或用户后续可能询问当前进度。
 
@@ -45,7 +46,7 @@ description: 默认为每个新的复杂用户消息创建一个新的 conversat
 
 ### 1. 全新任务创建 todo：`astronclaw_todo_create`
 
-如果当前用户消息是新的复杂任务，先调用 `astronclaw_todo_create`，再调用搜索、读取、写文件、命令执行或其它外部工具。不要先调用 `astronclaw_todo_get` 来寻找可复用 todo；新的复杂用户消息必须有自己的新 todo。todo items 应覆盖真实、用户可理解的执行阶段或检查项，而不是写 Agent 的思考步骤。
+如果当前用户消息是新的复杂任务，先调用 `astronclaw_todo_create`，再调用搜索、读取、写文件、编辑文件、命令执行或其它外部工具。不要先调用 `astronclaw_todo_get` 来寻找可复用 todo；新的复杂用户消息必须有自己的新 todo。todo items 应覆盖真实、用户可理解的执行阶段或检查项，而不是写 Agent 的思考步骤。
 
 ```text
 astronclaw_todo_create(
