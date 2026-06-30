@@ -24,11 +24,11 @@ const SESSION_A = "11111111-1111-1111-1111-111111111111";
 const SESSION_B = "22222222-2222-2222-2222-222222222222";
 const UNKNOWN_SESSION = "33333333-3333-3333-3333-333333333333";
 
-describe("conversation-todo-sync", () => {
+describe("astron-todo-sync", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "conversation-todo-sync-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "astron-todo-sync-"));
   });
 
   afterEach(async () => {
@@ -141,7 +141,7 @@ describe("conversation-todo-sync", () => {
     };
 
     const handled = await handler(
-      { method: "GET", url: "/plugins/conversation-todo-sync/todos" } as any,
+      { method: "GET", url: "/plugins/astron-todo-sync/todos" } as any,
       res as any,
     );
 
@@ -351,7 +351,7 @@ describe("conversation-todo-sync", () => {
     const statusResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      `/plugins/conversation-todo-sync/todos?session_id=${DEFAULT_SESSION_ID}`,
+      `/plugins/astron-todo-sync/todos?session_id=${DEFAULT_SESSION_ID}`,
     );
     assert.equal(statusResponse.statusCode, 200);
     assert.equal((statusResponse.body as any).sessionId, DEFAULT_SESSION_ID);
@@ -360,21 +360,21 @@ describe("conversation-todo-sync", () => {
     const oldStatusResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      `/plugins/conversation-todo-sync/todos/${created.todoId}/status`,
+      `/plugins/astron-todo-sync/todos/${created.todoId}/status`,
     );
     assert.equal(oldStatusResponse.statusCode, 404);
 
     const missingSessionKeyResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      "/plugins/conversation-todo-sync/todos",
+      "/plugins/astron-todo-sync/todos",
     );
     assert.equal(missingSessionKeyResponse.statusCode, 400);
 
     const emptySessionResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      `/plugins/conversation-todo-sync/todos?session_id=${UNKNOWN_SESSION}`,
+      `/plugins/astron-todo-sync/todos?session_id=${UNKNOWN_SESSION}`,
     );
     assert.equal(emptySessionResponse.statusCode, 200);
     assert.deepEqual((emptySessionResponse.body as any).todos, []);
@@ -382,7 +382,7 @@ describe("conversation-todo-sync", () => {
     const invalidSessionResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      "/plugins/conversation-todo-sync/todos?session_id=not-a-uuid",
+      "/plugins/astron-todo-sync/todos?session_id=not-a-uuid",
     );
     assert.equal(invalidSessionResponse.statusCode, 400);
   });
@@ -391,7 +391,7 @@ describe("conversation-todo-sync", () => {
     const statusResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      "/plugins/conversation-todo-sync/todos?session_key=agent%3Amain%3Aexplicit%3A44444444-4444-4444-4444-444444444444",
+      "/plugins/astron-todo-sync/todos?session_key=agent%3Amain%3Aexplicit%3A44444444-4444-4444-4444-444444444444",
     );
 
     assert.equal(statusResponse.statusCode, 400);
@@ -415,7 +415,7 @@ describe("conversation-todo-sync", () => {
     const statusResponse = await resolveTodoHttpResponse(
       tmpDir,
       "GET",
-      `/plugins/conversation-todo-sync/todos?session_id=${DEFAULT_SESSION_ID}`,
+      `/plugins/astron-todo-sync/todos?session_id=${DEFAULT_SESSION_ID}`,
     );
 
     assert.equal(statusResponse.statusCode, 200);

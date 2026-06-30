@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/conversation-todo-sync",
+  "name": "@openclaw/astron-todo-sync",
   "version": "0.1.0",
   "private": true,
   "description": "OpenClaw plugin for synchronized conversation todo state.",

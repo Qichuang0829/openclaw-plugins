@@ -1,8 +1,8 @@
-# conversation-todo-sync 测试报告
+# astron-todo-sync 测试报告
 
 测试时间：2026-06-28  
-测试对象：OpenClaw 插件 `conversation-todo-sync`  
-插件路径：`scripts/plugins/conversation-todo-sync`  
+测试对象：OpenClaw 插件 `astron-todo-sync`  
+插件路径：`scripts/plugins/astron-todo-sync`  
 运行时状态目录：`/home/selfwsl/.openclaw/conversation-todos`
 
 ## 结论
@@ -17,7 +17,7 @@
 - 复杂新任务会创建、更新并关闭 todo。
 - 简单问答不会误触发 todo 工具。
 - 续接任务会读取已有 todo，不会重复创建。
-- 用户最终回复未泄漏 `conversation-todo-sync`、`astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_complete`、`astronclaw_todo_get`、`todoId`、`todo.json` 等内部细节。
+- 用户最终回复未泄漏 `astron-todo-sync`、`astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_complete`、`astronclaw_todo_get`、`todoId`、`todo.json` 等内部细节。
 
 ## 已验证配置
 
@@ -35,13 +35,13 @@ OpenClaw 当前允许工具：
 OpenClaw 当前加载插件：
 
 ```text
-/home/selfwsl/gitlab/astronclaw-core-cicd/scripts/plugins/conversation-todo-sync
+/home/selfwsl/gitlab/astronclaw-core-cicd/scripts/plugins/astron-todo-sync
 ```
 
 运行日志显示网关加载：
 
 ```text
-http server listening (7 plugins: browser, conversation-todo-sync, device-pair, file-transfer, memory-core, phone-control, talk-voice)
+http server listening (7 plugins: browser, astron-todo-sync, device-pair, file-transfer, memory-core, phone-control, talk-voice)
 gateway ready
 ```
 
@@ -118,7 +118,7 @@ gateway ready
 前端状态接口：
 
 ```http
-GET /plugins/conversation-todo-sync/todos?session_id=<sessionId>
+GET /plugins/astron-todo-sync/todos?session_id=<sessionId>
 ```
 
 返回该 session 下的完整 `TodoList[]`，每个 todo 包含整体状态和每个 item 的 `status`、`startedAt`、`completedAt`、`artifactPaths`：
@@ -145,7 +145,7 @@ GET /plugins/conversation-todo-sync/todos?session_id=<sessionId>
 前端轮询规则：
 
 - 前端从当前对话上下文拿到 `session_id`。
-- 前端只轮询 `GET /plugins/conversation-todo-sync/todos?session_id=<sessionId>`。
+- 前端只轮询 `GET /plugins/astron-todo-sync/todos?session_id=<sessionId>`。
 - `pending` 或 `running` 时继续轮询。
 - `completed` 或 `failed` 时停止轮询。
 

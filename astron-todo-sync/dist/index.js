@@ -14,7 +14,7 @@ function resolveStateDir(api) {
 }
 const plugin = {
     id: PLUGIN_ID,
-    name: "Conversation Todo Sync",
+    name: "Astron Todo Sync",
     description: "Synchronize conversation todo/checklist state for multi-step tasks so UI and HTTP clients can show current user-visible todo status.",
     register(api) {
         const stateDir = resolveStateDir(api);

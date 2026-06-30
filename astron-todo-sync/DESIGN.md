@@ -1,8 +1,8 @@
-# conversation-todo-sync 设计方案
+# astron-todo-sync 设计方案
 
 ## 定位
 
-`conversation-todo-sync` 是一个会话 todo 状态同步插件。它不负责替 Agent 思考、拆解或编排任务，而是把 Agent 已经决定要推进的多步骤事项保存成结构化 todo，让用户界面或 HTTP 客户端可以读取“现在做到哪一步、哪些已经完成、哪些失败”。
+`astron-todo-sync` 是一个会话 todo 状态同步插件。它不负责替 Agent 思考、拆解或编排任务，而是把 Agent 已经决定要推进的多步骤事项保存成结构化 todo，让用户界面或 HTTP 客户端可以读取“现在做到哪一步、哪些已经完成、哪些失败”。
 
 适用场景：
 
@@ -24,7 +24,7 @@ OpenClaw Plugin Runtime
   |-- registerTool(astronclaw_todo_update)
   |-- registerTool(astronclaw_todo_complete)
   |-- registerTool(astronclaw_todo_get)
-  |-- registerHttpRoute(/plugins/conversation-todo-sync/todos)
+  |-- registerHttpRoute(/plugins/astron-todo-sync/todos)
   |
   `-- stateDir/
       `-- conversation-todos/
@@ -242,7 +242,7 @@ type TodoSummary = {
 HTTP 只作为前端轮询接口使用。前端使用当前对话的 `session_id` 查询该会话下所有 todo。
 
 ```http
-GET /plugins/conversation-todo-sync/todos?session_id=<sessionId>
+GET /plugins/astron-todo-sync/todos?session_id=<sessionId>
 ```
 
 返回规则：
@@ -257,7 +257,7 @@ GET /plugins/conversation-todo-sync/todos?session_id=<sessionId>
 
 ```ts
 async function pollTodos(sessionId: string) {
-  const res = await fetch(`/plugins/conversation-todo-sync/todos?session_id=${encodeURIComponent(sessionId)}`);
+  const res = await fetch(`/plugins/astron-todo-sync/todos?session_id=${encodeURIComponent(sessionId)}`);
   if (!res.ok) throw new Error(`todo status request failed: ${res.status}`);
 
   const { todos } = await res.json();

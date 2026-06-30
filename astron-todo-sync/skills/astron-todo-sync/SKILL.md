@@ -1,5 +1,5 @@
 ---
-name: conversation-todo-sync
+name: astron-todo-sync
 description: 默认在可拆分、会调用工具、多步骤执行、资料查询、分析比较、方案制定、准备清单、分阶段执行或跨多轮任务中创建并维护当前 conversation todo/checklist 状态。用于把 Agent 当前任务进度同步给用户界面或 HTTP 客户端查看；只有问候、闲聊、单个事实、翻译、命名、单句解释等非常简单的一步任务不要使用。
 ---
 
@@ -7,7 +7,7 @@ description: 默认在可拆分、会调用工具、多步骤执行、资料查�
 
 这些工具用于同步“当前任务 todo 状态”，不是规划推理工具。todo 内容应能被用户理解，并能通过 UI/HTTP 展示当前做到哪里。
 
-除非用户明确询问插件实现细节，否则不要在最终回复或普通对话中提到 `conversation-todo-sync`、`astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_get`、`astronclaw_todo_complete`、`todoId`、`todo.json` 或任何工具调用细节。
+除非用户明确询问插件实现细节，否则不要在最终回复或普通对话中提到 `astron-todo-sync`、`astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_get`、`astronclaw_todo_complete`、`todoId`、`todo.json` 或任何工具调用细节。
 
 用户看到的自然语言回复应只包含任务本身的结果、结论、建议、下一步行动或必要免责声明。不要说“我已创建 todo”“我正在调用 astronclaw_todo_update”“我将调用 complete 工具”。
 
