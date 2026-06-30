@@ -15,6 +15,10 @@ function resolveStateDir(api: any): string {
   return api?.stateDir ?? ".openclaw";
 }
 
+function allowsConversationHooks(api: any): boolean {
+  return api?.config?.plugins?.entries?.[PLUGIN_ID]?.hooks?.allowConversationAccess === true;
+}
+
 const plugin = {
   id: PLUGIN_ID,
   name: "Astron Todo Sync",
@@ -51,7 +55,7 @@ const plugin = {
       api.logger?.warn?.(`[${PLUGIN_ID}] registerHttpRoute is not available; todo state remains file/tool readable.`);
     }
 
-    if (typeof api.on === "function") {
+    if (typeof api.on === "function" && allowsConversationHooks(api)) {
       api.on("agent_end", createAgentEndHandler(stateDir, api.logger));
     }
   },
