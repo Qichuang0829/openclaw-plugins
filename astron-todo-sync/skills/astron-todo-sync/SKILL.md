@@ -1,6 +1,6 @@
 ---
 name: astron-todo-sync
-description: Load this skill for any user message that is not obviously instant Q&A. MUST call astronclaw_todo_create for every non-instant user request before doing work or using search/read/write/edit/command tools. This includes live/latest/today lookups such as stock prices, analysis, reports, planning, file generation, checklists, troubleshooting, comparison, and follow-up work like “继续补充并重新保存/整理成表格/再做一版”. Only skip for greetings, simple one-shot Q&A/translation/rewrite/naming/explanation, pure status questions, explicit no-todo requests, or obviously instant one-step replies.
+description: 当用户消息不是明显即问即答时加载本技能。对每个非即时请求，在执行任务或调用搜索、读取、写入、编辑、命令执行等工具前，必须先调用 astronclaw_todo_create。适用场景包括实时、最新、今天类查询（如股价）、分析、报告、规划、文件生成、清单、排查、对比，以及“继续补充并重新保存/整理成表格/再做一版”等后续工作。只有问候、简单单步问答、翻译、改写、起名、概念解释、纯进度询问、用户明确不要 todo，或明显即时一步回复时才跳过。
 ---
 
 ## 使用原则
