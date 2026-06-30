@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import { DEFAULT_SESSION_ID } from "../src/constants.js";
+import { createAgentEndHandler } from "../src/agent-end.js";
 import { createTodoHttpHandler, resolveTodoHttpResponse } from "../src/http.js";
 import {
   getSessionPath,
@@ -422,6 +423,55 @@ describe("astron-todo-sync", () => {
     assert.equal(completedAgain.success, true);
     assert.equal(completedAgain.status, "completed");
     assert.deepEqual(secondClosed, firstClosed);
+  });
+
+  it("marks open todos failed when the agent turn fails", async () => {
+    const createTool = createTodoCreateTool(tmpDir, SESSION_A);
+    const updateTool = createTodoUpdateTool(tmpDir, SESSION_A);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Fail unfinished task on agent error",
+        items: ["Draft", "Save"],
+      }),
+    );
+
+    await updateTool.execute("call-2", {
+      todo_id: created.todoId,
+      updates: [{ item_index: 1, status: "completed" }],
+    });
+
+    const handleAgentEnd = createAgentEndHandler(tmpDir);
+    await handleAgentEnd(
+      { success: false, error: "Context overflow" },
+      { sessionId: SESSION_A },
+    );
+
+    const todo = await readTodo(tmpDir, SESSION_A, created.todoId);
+    assert.equal(todo.status, "failed");
+    assert.equal(todo.items[0].status, "completed");
+    assert.equal(todo.items[1].status, "failed");
+    assert.equal(typeof todo.closedAt, "string");
+
+    const summaries = await readTodoSummaries(tmpDir, SESSION_A);
+    assert.equal(summaries[0]!.status, "failed");
+    assert.equal(summaries[0]!.failedItemCount, 1);
+  });
+
+  it("does not close open todos when the agent turn succeeds", async () => {
+    const createTool = createTodoCreateTool(tmpDir, SESSION_A);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Leave successful turn state to complete tool",
+        items: ["Draft"],
+      }),
+    );
+
+    const handleAgentEnd = createAgentEndHandler(tmpDir);
+    await handleAgentEnd({ success: true }, { sessionKey: `agent:main:explicit:${SESSION_A}` });
+
+    const todo = await readTodo(tmpDir, SESSION_A, created.todoId);
+    assert.equal(todo.status, "running");
+    assert.equal(todo.closedAt, undefined);
   });
 
   it("rejects completion when items are incomplete", async () => {
