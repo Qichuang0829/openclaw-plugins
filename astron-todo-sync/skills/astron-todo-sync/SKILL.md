@@ -1,6 +1,6 @@
 ---
 name: astron-todo-sync
-description: MUST call astronclaw_todo_create before search/read/write/edit/command tools for every new complex user message. Complex includes analysis, report, file generation, checklist, troubleshooting, comparison, planning, and follow-up work like “继续补充并重新保存/整理成表格/再做一版”. One complex user message = one new todo; never reuse or update an earlier todo for new work. Do not create todo only for greetings, simple one-shot Q&A/translation/rewrite/naming/explanation, or pure status questions.
+description: MUST call astronclaw_todo_create before search/read/write/edit/command tools when a user message will make the user wait on external work or has complex work. This includes live/latest/today lookups such as stock prices, analysis, reports, file generation, checklists, troubleshooting, comparison, planning, and follow-up work like “继续补充并重新保存/整理成表格/再做一版”. One wait-worthy or complex user message = one new todo; never reuse or update an earlier todo for new work. Do not create todo for greetings, simple one-shot Q&A/translation/rewrite/naming/explanation, pure status questions, or obviously instant one-step replies.
 ---
 
 ## 使用原则
@@ -11,12 +11,13 @@ description: MUST call astronclaw_todo_create before search/read/write/edit/comm
 
 用户看到的自然语言回复应只包含任务本身的结果、结论、建议、下一步行动或必要免责声明。不要说“我已创建 todo”“我正在调用 astronclaw_todo_update”“我将调用 complete 工具”。
 
-默认使用本工具组同步 todo 状态。一个复杂用户消息对应一个新的 todo。复杂用户消息必须先调用 `astronclaw_todo_create`，再调用搜索、读取、写入、编辑、命令执行或其它外部工具。只有当前用户消息明显不需要拆分、不会调用任何外部工具、也没有用户可见执行过程时，才可以不使用。
+默认使用本工具组同步 todo 状态。一个需要用户等待外部工具结果或包含复杂执行过程的用户消息，对应一个新的 todo。这样的用户消息必须先调用 `astronclaw_todo_create`，再调用搜索、读取、写入、编辑、命令执行或其它外部工具。任务不一定要很大；只要用户会等待几秒以上、等待时间不确定，或需要让 UI/HTTP 客户端展示“正在查/正在处理”的进展，就创建轻量 todo。只有当前用户消息明显不需要拆分、不会让用户等待外部工具结果、也没有用户可见执行过程时，才可以不使用。
 
 必须使用本工具组的场景：
 
 - 任务可以拆成 2 个以上用户可见的实际步骤。
-- 任务需要或可能需要调用搜索、网页读取、接口查询、文件读写、代码执行、命令执行、生成文件、调用其它工具等外部工具。
+- 任务需要或可能需要调用搜索、网页读取、接口查询、文件读写、代码执行、命令执行、生成文件、调用其它工具等外部工具，并且用户会等待几秒以上或等待时间不确定。
+- 任务是实时、最新、今天、当前状态类查询，且需要外部来源获取结果并整理给用户，例如股票股价/涨跌幅/交易状态、公司最新消息、新闻、政策、价格、榜单、公告、天气、汇率等。即使只查询一个对象或一个核心字段，只要会让用户等待外部结果，也要创建轻量 todo。
 - 任务需要调用 `write`、`edit` 或其它文件修改工具。必须先为当前用户消息创建新的 todo，再写入或编辑文件。
 - 任务需要查询、阅读、比较、归纳多个来源或多类信息。
 - 任务需要围绕多个对象或多个指标搜集资料并整理结论，例如多家公司股价/涨跌/市值/近期消息对比。即使用户只要求一轮完成，也必须同步 todo。
@@ -29,12 +30,13 @@ description: MUST call astronclaw_todo_create before search/read/write/edit/comm
 可以不使用本工具组的场景仅限非常简单的一步对话，例如：
 
 - 问候或闲聊，例如“你好”“你是谁”。
-- 单个事实问答，且不需要搜索或其它工具。
+- 单个事实问答，且不需要搜索、网页、接口或其它会让用户等待的外部工具。
 - 翻译一句话、改写一句话、起一个名字、解释一个简单概念。
+- 明显非常快的一步回复，不需要展示“正在处理”的过程。
 - 纯进度询问，例如“处理好了吗”“保存了吗”“现在到哪了”“刚才那个怎么样了”，且没有新的执行动作。
 - 用户明确要求不要创建或同步 todo。
 
-不要因为任务“逻辑线性”“一轮可以完成”“只是信息查询加整理”“不需要跨轮追踪”而跳过 todo。todo 的用途是把 OpenClaw 当前任务进度同步给 UI/HTTP 客户端，让用户感知执行过程，不是只用于跨轮任务。只要任务能拆分，或涉及工具调用，就创建并维护 todo。
+不要因为任务“逻辑线性”“一轮可以完成”“只是查一个数据”“不需要跨轮追踪”而跳过 todo。todo 的用途是把 OpenClaw 当前任务进度同步给 UI/HTTP 客户端，让用户感知执行过程，不是只用于跨轮任务。只要任务能拆分，或会让用户等待外部工具结果，就创建并维护 todo。
 
 当用户给出的信息已经足够推进时，不要为了偏好细节反复提问。可以基于合理假设直接执行，并在最终回复中说明关键假设。只有缺少必要条件会导致任务无法继续、产生明显风险或用户明确要求确认时，才向用户提问。
 
@@ -46,7 +48,7 @@ description: MUST call astronclaw_todo_create before search/read/write/edit/comm
 
 ### 1. 全新任务创建 todo：`astronclaw_todo_create`
 
-如果当前用户消息是新的复杂任务，先调用 `astronclaw_todo_create`，再调用搜索、读取、写文件、编辑文件、命令执行或其它外部工具。不要先调用 `astronclaw_todo_get` 来寻找可复用 todo；新的复杂用户消息必须有自己的新 todo。todo items 应覆盖真实、用户可理解的执行阶段或检查项，而不是写 Agent 的思考步骤。
+如果当前用户消息是新的复杂任务，或会让用户等待外部工具结果，先调用 `astronclaw_todo_create`，再调用搜索、读取、写文件、编辑文件、命令执行或其它外部工具。不要先调用 `astronclaw_todo_get` 来寻找可复用 todo；新的复杂或 wait-worthy 用户消息必须有自己的新 todo。todo items 应覆盖真实、用户可理解的执行阶段或检查项，而不是写 Agent 的思考步骤。对于只查询一个实时数据的轻量任务，可以创建 1-2 个简短 item，例如“查询今日行情”“整理结果并回复”。
 
 ```text
 astronclaw_todo_create(
