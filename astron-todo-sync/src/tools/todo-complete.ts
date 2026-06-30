@@ -22,6 +22,16 @@ type TodoCompleteParams = {
   todo_id: string;
 };
 
+const COMPLETE_RETRY_DELAYS_MS = [200, 500] as const;
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getIncompleteItems(todo: TodoList) {
+  return todo.items.filter((item) => item.status !== "completed" && item.status !== "failed");
+}
+
 export function createTodoCompleteTool(stateDir: string, sessionId = DEFAULT_SESSION_ID): AnyAgentTool {
   return {
     name: "astronclaw_todo_complete",
@@ -51,9 +61,25 @@ export function createTodoCompleteTool(stateDir: string, sessionId = DEFAULT_SES
         return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
       }
 
-      const incomplete = todo.items.filter(
-        (item) => item.status !== "completed" && item.status !== "failed",
-      );
+      let incomplete = getIncompleteItems(todo);
+      for (const delayMs of COMPLETE_RETRY_DELAYS_MS) {
+        if (incomplete.length === 0) {
+          break;
+        }
+        await wait(delayMs);
+        try {
+          todo = await readTodo(stateDir, sessionId, todoId);
+        } catch (err) {
+          return jsonResult({
+            error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
+          });
+        }
+        if (!todoBelongsToSessionId(todo, sessionId)) {
+          return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
+        }
+        incomplete = getIncompleteItems(todo);
+      }
+
       if (incomplete.length > 0) {
         return jsonResult({
           error: "Cannot complete todo while items are still pending or in progress.",

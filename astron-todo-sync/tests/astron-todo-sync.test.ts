@@ -20,6 +20,10 @@ function parseToolResult(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0]!.text);
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const SESSION_A = "11111111-1111-1111-1111-111111111111";
 const SESSION_B = "22222222-2222-2222-2222-222222222222";
 const UNKNOWN_SESSION = "33333333-3333-3333-3333-333333333333";
@@ -316,6 +320,41 @@ describe("astron-todo-sync", () => {
     assert.equal(summaries[0]!.completedItemCount, 1);
     assert.equal(summaries[0]!.failedItemCount, 1);
     assert.equal(typeof summaries[0]!.closedAt, "string");
+  });
+
+  it("retries completion after a delayed terminal update", async () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const completeTool = createTodoCompleteTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Finish with concurrent tool calls",
+        items: ["Draft", "Review"],
+      }),
+    );
+
+    const completePromise = completeTool.execute("call-2", {
+      todo_id: created.todoId,
+    });
+    const updatePromise = wait(50).then(() =>
+      updateTool.execute("call-3", {
+        todo_id: created.todoId,
+        updates: [
+          { item_index: 1, status: "completed" },
+          { item_index: 2, status: "completed" },
+        ],
+      }),
+    );
+
+    const completed = parseToolResult(await completePromise);
+    await updatePromise;
+
+    assert.equal(completed.success, true);
+    assert.equal(completed.status, "completed");
+
+    const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+    assert.equal(todo.status, "completed");
+    assert.equal(typeof todo.closedAt, "string");
   });
 
   it("rejects completion when items are incomplete", async () => {
