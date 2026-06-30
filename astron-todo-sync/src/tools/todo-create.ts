@@ -62,7 +62,7 @@ export function createTodoCreateTool(stateDir: string, sessionId = DEFAULT_SESSI
     name: "astronclaw_todo_create",
     label: "Create Conversation Todo",
     description:
-      "MUST call this before search/read/write/edit/command tools when the current user message will make the user wait on external work or has complex work. This includes live/latest/today lookups such as stock prices, research, analysis, planning, file generation, command/code execution, checklists, comparisons, troubleshooting, and follow-up work such as continue/supplement/resave/make a table. One wait-worthy or complex user message needs one new todo; never reuse an earlier todo for new work. Do not mention tool names or todo IDs to the user.",
+      "MUST call this for every current user message that is not obviously instant Q&A, before doing work or using search/read/write/edit/command tools. This includes live/latest/today lookups such as stock prices, research, analysis, planning, file generation, command/code execution, checklists, comparisons, troubleshooting, and follow-up work such as continue/supplement/resave/make a table. One non-instant user message needs one new todo; never reuse an earlier todo for new work. Do not mention tool names or todo IDs to the user.",
     parameters: TodoCreateSchema,
     async execute(_toolCallId: string, params: TodoCreateParams) {
       const task = params.task?.trim();

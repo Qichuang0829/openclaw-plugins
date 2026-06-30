@@ -18,7 +18,7 @@ const plugin = {
   id: PLUGIN_ID,
   name: "Astron Todo Sync",
   description:
-    "MUST create one new todo for each wait-worthy or complex user message before search/write/edit/command tools so UI and HTTP clients can show current task progress.",
+    "MUST create one new todo for every non-instant user message before doing work or using search/write/edit/command tools so UI and HTTP clients can show current task progress.",
   register(api: any) {
     const stateDir = resolveStateDir(api);
 
