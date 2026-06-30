@@ -1,6 +1,6 @@
 ---
 name: astron-todo-sync
-description: 默认在可拆分、会调用工具、多步骤执行、资料查询、分析比较、方案制定、准备清单、分阶段执行或跨多轮任务中创建并维护当前 conversation todo/checklist 状态。用于把 Agent 当前任务进度同步给用户界面或 HTTP 客户端查看；只有问候、闲聊、单个事实、翻译、命名、单句解释等非常简单的一步任务不要使用。
+description: 默认为每个新的复杂用户消息创建一个新的 conversation todo/checklist；复杂消息包括需要搜索、网页读取、接口查询、文件读写、代码/命令执行、生成文件、分析报告、对比分析、方案制定、排查流程或清单整理等。一个复杂用户消息对应一个新的 todo，不复用上一条 todo，也不要因为 session 中已有 running/completed todo 而跳过创建。只有问候、闲聊、单个事实、单句翻译/改写/命名/解释、纯进度询问等简单一步消息，且不需要外部工具时不要使用。
 ---
 
 ## 使用原则
@@ -11,7 +11,7 @@ description: 默认在可拆分、会调用工具、多步骤执行、资料查�
 
 用户看到的自然语言回复应只包含任务本身的结果、结论、建议、下一步行动或必要免责声明。不要说“我已创建 todo”“我正在调用 astronclaw_todo_update”“我将调用 complete 工具”。
 
-默认使用本工具组同步 todo 状态。只有任务明显不需要拆分、不会调用任何外部工具、也没有用户可见执行过程时，才可以不使用。
+默认使用本工具组同步 todo 状态。一个复杂用户消息对应一个新的 todo。只有当前用户消息明显不需要拆分、不会调用任何外部工具、也没有用户可见执行过程时，才可以不使用。
 
 必须使用本工具组的场景：
 
@@ -21,6 +21,7 @@ description: 默认在可拆分、会调用工具、多步骤执行、资料查�
 - 任务需要围绕多个对象或多个指标搜集资料并整理结论，例如多家公司股价/涨跌/市值/近期消息对比。即使用户只要求一轮完成，也必须同步 todo。
 - 任务需要先拆解，再执行，再汇总结论。
 - 任务包含准备清单、时间顺序、携带物品、注意事项、检查流程、课前/出门前/活动前准备。
+- 用户消息要求“继续、补充、重新保存、整理成表格、生成新文件、再做一版”等新的复杂执行动作。即使它引用上一轮结果，也要创建新的 todo。
 - 用户要求“完整流程”“逐步推进”“跟踪任务”“不要一次性草率完成”。
 - 任务可能持续多轮，或用户后续可能询问当前进度。
 
@@ -29,21 +30,22 @@ description: 默认在可拆分、会调用工具、多步骤执行、资料查�
 - 问候或闲聊，例如“你好”“你是谁”。
 - 单个事实问答，且不需要搜索或其它工具。
 - 翻译一句话、改写一句话、起一个名字、解释一个简单概念。
+- 纯进度询问，例如“处理好了吗”“保存了吗”“现在到哪了”“刚才那个怎么样了”，且没有新的执行动作。
 - 用户明确要求不要创建或同步 todo。
 
 不要因为任务“逻辑线性”“一轮可以完成”“只是信息查询加整理”“不需要跨轮追踪”而跳过 todo。todo 的用途是把 OpenClaw 当前任务进度同步给 UI/HTTP 客户端，让用户感知执行过程，不是只用于跨轮任务。只要任务能拆分，或涉及工具调用，就创建并维护 todo。
 
 当用户给出的信息已经足够推进时，不要为了偏好细节反复提问。可以基于合理假设直接执行，并在最终回复中说明关键假设。只有缺少必要条件会导致任务无法继续、产生明显风险或用户明确要求确认时，才向用户提问。
 
-在当前会话中最多维护一个主要活跃 todo，除非用户明确切换到新的独立任务。不要因为进入新一轮对话就重新创建 todo。
+每个新的复杂用户消息都创建新的 todo。不要复用上一条 todo，不要把新的复杂用户消息合并进旧 todo，也不要因为当前 session 中已经存在 `running`、`completed` 或 `failed` todo 而跳过创建。已关闭的 todo 不再更新。
 
-所有工具都按当前 `sessionKey` 隔离。`astronclaw_todo_get` 默认只返回当前会话的 todo；`astronclaw_todo_update`、`astronclaw_todo_complete` 只能操作当前会话中的 todo。
+所有工具都按当前 `sessionId` 隔离。`astronclaw_todo_get` 默认只返回当前会话的 todo；`astronclaw_todo_update`、`astronclaw_todo_complete` 只能操作当前会话中的 todo。
 
 ## 工作流
 
 ### 1. 全新任务创建 todo：`astronclaw_todo_create`
 
-如果用户明确发起一个全新的稍复杂任务，并且当前上下文没有活跃 todo，直接调用 `astronclaw_todo_create`，不要先调用 `astronclaw_todo_get`。todo items 应覆盖真实、用户可理解的执行阶段或检查项，而不是写 Agent 的思考步骤。
+如果当前用户消息是新的复杂任务，先调用 `astronclaw_todo_create`，再调用搜索、读取、写文件、命令执行或其它外部工具。不要先调用 `astronclaw_todo_get` 来寻找可复用 todo；新的复杂用户消息必须有自己的新 todo。todo items 应覆盖真实、用户可理解的执行阶段或检查项，而不是写 Agent 的思考步骤。
 
 ```text
 astronclaw_todo_create(
@@ -59,26 +61,25 @@ astronclaw_todo_create(
 
 后续所有调用都必须使用返回的完整 `todoId`，例如 `release-checklist-a1b2c3`，不要只使用基础 ID。
 
-### 2. 恢复或续接 todo：`astronclaw_todo_get`
+### 2. 查询 todo 状态：`astronclaw_todo_get`
 
-`astronclaw_todo_get` 不是 `astronclaw_todo_create` 的固定前置步骤。只有在需要恢复、续接或确认已有 todo 时才调用。这个检查是内部行为，不要告诉用户。
+`astronclaw_todo_get` 不是 `astronclaw_todo_create` 的固定前置步骤。只有在用户询问进度、保存状态、刚才任务结果，或需要读取当前 session 的 todo 状态来回答状态问题时才调用。这个检查是内部行为，不要告诉用户。
 
 优先调用 `astronclaw_todo_get` 的场景：
 
-- 用户说“继续”“接着刚才”“现在进度如何”“恢复这个任务”。
-- 当前上下文里没有可用的完整 `todoId`，但你需要继续一个可能已经存在的 todo。
-- 用户的新消息看起来仍属于当前会话的同一个未完成任务。
+- 用户说“现在进度如何”“处理好了吗”“保存了吗”“刚才那个怎么样了”，且没有提出新的复杂执行动作。
+- 当前上下文里没有可用的完整 `todoId`，但你需要回答某个已有 todo 的状态。
 - 长对话、上下文压缩或工具结果缺失导致你不确定当前 todo 状态。
 
 ```text
 astronclaw_todo_get()
 ```
 
-如果返回的 todo 中已有同一任务的 `pending` 或 `running` 项目，继续使用该 todo，不要新建。
+如果用户消息包含新的复杂执行动作，例如“继续，补充风险提示并重新保存”“把刚才内容整理成表格”“再做一版报告”，不要复用旧 todo；应创建新的 todo 来跟踪这条用户消息。
 
 ### 3. 更新 todo：`astronclaw_todo_update`
 
-每完成一个实际阶段后更新对应 todo item。不要把工具更新内容原样转述给用户。优先使用稳定的 `item_id`，没有 ID 时使用 1-based `item_index`。
+每完成一个实际阶段后更新当前用户消息创建的 todo item。不要把工具更新内容原样转述给用户。优先使用稳定的 `item_id`，没有 ID 时使用 1-based `item_index`。
 
 ```text
 astronclaw_todo_update(
@@ -89,7 +90,7 @@ astronclaw_todo_update(
 )
 ```
 
-如果任务范围发生变化，可以用 `append_items` 追加 todo item，而不是重新创建 todo。
+如果同一条用户消息执行过程中范围发生变化，可以用 `append_items` 追加 todo item。新的用户消息不要 append 到旧 todo，应创建新的 todo。
 
 ### 4. 查询 todo 状态：`astronclaw_todo_get`
 
@@ -115,7 +116,9 @@ astronclaw_todo_complete(
 
 - 不要在用户可见回复中暴露工具名、todo ID、内部状态文件或“已调用某工具”。
 - 不要跨会话使用其它会话返回的 `todoId`。
-- 不要在同一任务中反复调用 `astronclaw_todo_create`。
+- 不要复用上一条 todo 来跟踪新的复杂用户消息。
+- 不要更新已经 `completed` 或 `failed` 的 todo。
+- 不要在同一条用户消息中反复调用 `astronclaw_todo_create`。
 - 不要在还有 `pending` 或 `in_progress` item 时调用 `astronclaw_todo_complete`。
 - 不要把基础 `todo_id` 当作完整 `todoId` 使用。
 - 不要为简单问答、单句解释、翻译、起名等一次性小任务创建 todo。

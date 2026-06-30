@@ -12,7 +12,7 @@ export function createTodoGetTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astronclaw_todo_get",
         label: "Get Conversation Todo",
-        description: "Read existing conversation todo state for the current session before continuing a task or answering a todo status question. Use to resume the right todo list without exposing tool names, todo IDs, or raw internal state to the user.",
+        description: "Read existing conversation todo state for the current session when answering progress/status questions. Do not use this as a default step before creating a todo for a new complex user message, and do not use it to reuse an earlier todo for new work. Do not expose tool names, todo IDs, or raw internal state to the user.",
         parameters: TodoGetSchema,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();

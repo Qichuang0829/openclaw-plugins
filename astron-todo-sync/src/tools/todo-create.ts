@@ -62,7 +62,7 @@ export function createTodoCreateTool(stateDir: string, sessionId = DEFAULT_SESSI
     name: "astronclaw_todo_create",
     label: "Create Conversation Todo",
     description:
-      "Create a persisted conversation todo list for a user-visible multi-step task. Use for moderately complex tasks with multiple phases, checklists, preparation steps, research, analysis, or follow-up. This records the current todo state for UI/HTTP sync; do not mention tool names or todo IDs to the user.",
+      "Create a new persisted conversation todo list for each new complex user message before calling other external tools. Use once for a user message that needs research, analysis, planning, file generation, command/code execution, checklists, or multiple user-visible steps. Do not reuse an earlier todo for a new user message; do not mention tool names or todo IDs to the user.",
     parameters: TodoCreateSchema,
     async execute(_toolCallId: string, params: TodoCreateParams) {
       const task = params.task?.trim();

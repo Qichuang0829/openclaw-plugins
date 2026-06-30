@@ -20,7 +20,7 @@ export function createTodoCompleteTool(stateDir, sessionId = DEFAULT_SESSION_ID)
     return {
         name: "astronclaw_todo_complete",
         label: "Complete Conversation Todo",
-        description: "Close the persisted conversation todo list after every item is completed or failed and before sending the final user-facing result. This keeps the UI/HTTP todo state accurate; do not mention tool names, todo IDs, or internal state to the user.",
+        description: "Close the persisted conversation todo list created for the current user message after every item is completed or failed and before sending the final user-facing result. Closed todos are immutable; repeated complete calls return the existing closed state. Do not mention tool names, todo IDs, or internal state to the user.",
         parameters: TodoCompleteSchema,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();
@@ -42,6 +42,14 @@ export function createTodoCompleteTool(stateDir, sessionId = DEFAULT_SESSION_ID)
             }
             if (!todoBelongsToSessionId(todo, sessionId)) {
                 return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
+            }
+            if (todo.status === "completed" || todo.status === "failed") {
+                return jsonResult({
+                    success: true,
+                    todoId,
+                    status: todo.status,
+                    todo,
+                });
             }
             let incomplete = getIncompleteItems(todo);
             for (const delayMs of COMPLETE_RETRY_DELAYS_MS) {

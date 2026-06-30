@@ -42,7 +42,7 @@ const TodoUpdateSchema = {
         },
         append_items: {
             type: "array",
-            description: "Optional new todo items to append when the task scope changes.",
+            description: "Optional new todo items to append while executing the same current user message. Do not append items for a later user message; create a new todo instead.",
             items: {
                 anyOf: [{ type: "string" }, AppendItemSchema],
             },
@@ -90,9 +90,6 @@ function deriveStatusAfterUpdate(currentStatus, items, changed) {
     if (currentStatus === "completed" || currentStatus === "failed") {
         return currentStatus;
     }
-    if (items.some((item) => item.status === "failed")) {
-        return "failed";
-    }
     if (items.some((item) => item.status !== "pending")) {
         return "running";
     }
@@ -102,7 +99,7 @@ export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astronclaw_todo_update",
         label: "Update Conversation Todo",
-        description: "Update the persisted conversation todo state after a real item starts, completes, fails, or changes. Use this to keep the user-visible todo/checklist state accurate through HTTP/UI sync. Do not mention tool names or todo IDs in user-facing messages.",
+        description: "Update only the persisted todo created for the current user message after a real item starts, completes, fails, or changes. Closed todos cannot be changed; create a new todo for a later complex user message instead of reusing an earlier one. Do not mention tool names or todo IDs in user-facing messages.",
         parameters: TodoUpdateSchema,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();
@@ -124,6 +121,13 @@ export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
             }
             if (!todoBelongsToSessionId(todo, sessionId)) {
                 return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
+            }
+            if (todo.status === "completed" || todo.status === "failed") {
+                return jsonResult({
+                    error: `Todo "${todoId}" is already closed and cannot be updated.`,
+                    status: todo.status,
+                    todo,
+                });
             }
             const timestamp = nowIso();
             const nextItems = [...todo.items];

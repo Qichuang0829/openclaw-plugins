@@ -302,6 +302,9 @@ describe("astron-todo-sync", () => {
       ],
     });
 
+    const beforeComplete = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+    assert.equal(beforeComplete.status, "running");
+
     const completed = parseToolResult(
       await completeTool.execute("call-3", {
         todo_id: created.todoId,
@@ -355,6 +358,70 @@ describe("astron-todo-sync", () => {
     const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
     assert.equal(todo.status, "completed");
     assert.equal(typeof todo.closedAt, "string");
+  });
+
+  it("does not update a closed todo", async () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const completeTool = createTodoCompleteTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Keep closed todo immutable",
+        items: ["Draft"],
+      }),
+    );
+
+    await updateTool.execute("call-2", {
+      todo_id: created.todoId,
+      updates: [{ item_index: 1, status: "completed" }],
+    });
+    await completeTool.execute("call-3", {
+      todo_id: created.todoId,
+    });
+
+    const beforeUpdate = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+    const updated = parseToolResult(
+      await updateTool.execute("call-4", {
+        todo_id: created.todoId,
+        updates: [{ item_index: 1, status: "in_progress" }],
+      }),
+    );
+    const afterUpdate = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+
+    assert.match(updated.error, /already closed/);
+    assert.deepEqual(afterUpdate, beforeUpdate);
+  });
+
+  it("returns existing closed todo when complete is called again", async () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const completeTool = createTodoCompleteTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Complete once",
+        items: ["Draft"],
+      }),
+    );
+
+    await updateTool.execute("call-2", {
+      todo_id: created.todoId,
+      updates: [{ item_index: 1, status: "completed" }],
+    });
+    await completeTool.execute("call-3", {
+      todo_id: created.todoId,
+    });
+
+    const firstClosed = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+    const completedAgain = parseToolResult(
+      await completeTool.execute("call-4", {
+        todo_id: created.todoId,
+      }),
+    );
+    const secondClosed = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+
+    assert.equal(completedAgain.success, true);
+    assert.equal(completedAgain.status, "completed");
+    assert.deepEqual(secondClosed, firstClosed);
   });
 
   it("rejects completion when items are incomplete", async () => {
