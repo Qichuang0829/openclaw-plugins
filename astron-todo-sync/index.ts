@@ -5,7 +5,6 @@ import { createTodoGetTool } from "./src/tools/todo-get.js";
 import { createTodoUpdateTool } from "./src/tools/todo-update.js";
 import { createTodoHttpHandler } from "./src/http.js";
 import { normalizeSessionId } from "./src/todo-state.js";
-import { createAgentEndHandler } from "./src/agent-end.js";
 
 function resolveStateDir(api: any): string {
   const fromRuntime = api?.runtime?.state?.resolveStateDir?.();
@@ -13,10 +12,6 @@ function resolveStateDir(api: any): string {
     return fromRuntime;
   }
   return api?.stateDir ?? ".openclaw";
-}
-
-function allowsConversationHooks(api: any): boolean {
-  return api?.config?.plugins?.entries?.[PLUGIN_ID]?.hooks?.allowConversationAccess === true;
 }
 
 const plugin = {
@@ -53,10 +48,6 @@ const plugin = {
       });
     } else {
       api.logger?.warn?.(`[${PLUGIN_ID}] registerHttpRoute is not available; todo state remains file/tool readable.`);
-    }
-
-    if (typeof api.on === "function" && allowsConversationHooks(api)) {
-      api.on("agent_end", createAgentEndHandler(stateDir, api.logger));
     }
   },
 };
