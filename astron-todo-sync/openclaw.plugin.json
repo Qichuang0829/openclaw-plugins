@@ -6,7 +6,6 @@
   "activation": {
     "onStartup": true
   },
-  "skills": ["./skills"],
   "contracts": {
     "tools": [
       "astron_single_agent_todo_create",

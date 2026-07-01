@@ -9,7 +9,6 @@
     "index.ts",
     "src/",
     "dist/",
-    "skills/",
     "openclaw.plugin.json"
   ],
   "scripts": {

@@ -154,7 +154,7 @@ GET /plugins/astron-todo-sync/todos?session_id=<sessionId>
 当前实现已经满足“准确给用户提供当前 todo 状态”的生产前验收标准：
 
 - 名称和语义已经从任务设计概念收敛为 todo/checklist 状态同步。
-- 工具描述和 skill 能稳定触发日常多步骤任务。
+- 工具描述保留单 Agent todo 边界；具体触发流程由外部系统提示词承载。
 - 新任务、简单任务、续接任务三类行为区分清晰。
 - HTTP 状态接口能按 `session_id` 表达该会话下 todo 的整体状态和事项级完成度。
 - session 隔离有效，续接不会重复创建 todo。
