@@ -37,7 +37,7 @@ export function createTodoCompleteTool(stateDir: string, sessionId = DEFAULT_SES
     name: "astron_single_agent_todo_complete",
     label: "Complete Single-Agent Todo",
     description:
-      "仅用于关闭当前单 Agent 用户消息创建的持久化 todo。禁止在 agent-team 流程中使用；team 任务完成状态由 agent-team 的 team_complete 和 todo.md 负责。只有所有 todo item 都已 completed 或 failed，且即将发送最终用户结果时才调用本工具。已关闭 todo 不可变；重复完成调用返回已有关闭状态。不要向用户暴露工具名、todoId 或内部状态。",
+      "仅用于关闭当前单 Agent 用户消息创建的持久化 todo。禁止在 agent-team 流程中使用。只有所有 todo item 都已 completed 或 failed，且即将发送最终用户结果时才调用本工具。已关闭 todo 不可变；重复完成调用返回已有关闭状态。不要向用户暴露工具名、todoId 或内部状态。",
     parameters: TodoCompleteSchema,
     async execute(_toolCallId: string, params: TodoCompleteParams) {
       const todoId = params.todo_id?.trim();

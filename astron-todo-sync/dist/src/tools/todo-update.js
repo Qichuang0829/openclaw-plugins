@@ -99,7 +99,7 @@ export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astron_single_agent_todo_update",
         label: "Update Single-Agent Todo",
-        description: "仅用于更新 astron_single_agent_todo_create 为当前单 Agent 用户消息创建的 todo。禁止在 agent-team 流程中使用；team 任务进度由 agent-team 的 todo.md 和 team_update_progress/team_complete 负责。不要更新早前用户消息的 todo；继续、补充、重存、制作表格等新的后续工作应先创建新的单 Agent todo。已关闭 todo 不可修改。不要在用户可见消息中暴露工具名或 todoId。",
+        description: "仅用于更新 astron_single_agent_todo_create 为当前单 Agent 用户消息创建的 todo。禁止在 agent-team 流程中使用。不要更新早前用户消息的 todo；继续、补充、重存、制作表格等新的后续工作应先创建新的单 Agent todo。已关闭 todo 不可修改。不要在用户可见消息中暴露工具名或 todoId。",
         parameters: TodoUpdateSchema,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();
