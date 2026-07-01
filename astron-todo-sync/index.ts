@@ -18,25 +18,25 @@ const plugin = {
   id: PLUGIN_ID,
   name: "Astron Todo Sync",
   description:
-    "MUST create one new todo for every non-instant user message before doing work or using search/write/edit/command tools so UI and HTTP clients can show current task progress.",
+    "Synchronize JSON todo progress for non-instant single-agent chat tasks; do not use for agent-team/team_* workflows, which manage their own todo.md progress.",
   register(api: any) {
     const stateDir = resolveStateDir(api);
 
     api.registerTool(
       (ctx: any) => createTodoCreateTool(stateDir, normalizeSessionId(ctx?.sessionId)),
-      { name: "astronclaw_todo_create" },
+      { name: "astron_single_agent_todo_create" },
     );
     api.registerTool(
       (ctx: any) => createTodoUpdateTool(stateDir, normalizeSessionId(ctx?.sessionId)),
-      { name: "astronclaw_todo_update" },
+      { name: "astron_single_agent_todo_update" },
     );
     api.registerTool(
       (ctx: any) => createTodoCompleteTool(stateDir, normalizeSessionId(ctx?.sessionId)),
-      { name: "astronclaw_todo_complete" },
+      { name: "astron_single_agent_todo_complete" },
     );
     api.registerTool(
       (ctx: any) => createTodoGetTool(stateDir, normalizeSessionId(ctx?.sessionId)),
-      { name: "astronclaw_todo_get" },
+      { name: "astron_single_agent_todo_get" },
     );
 
     if (typeof api.registerHttpRoute === "function") {

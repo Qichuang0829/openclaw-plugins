@@ -20,10 +20,10 @@
 
 ```text
 OpenClaw Plugin Runtime
-  |-- registerTool(astronclaw_todo_create)
-  |-- registerTool(astronclaw_todo_update)
-  |-- registerTool(astronclaw_todo_complete)
-  |-- registerTool(astronclaw_todo_get)
+  |-- registerTool(astron_single_agent_todo_create)
+  |-- registerTool(astron_single_agent_todo_update)
+  |-- registerTool(astron_single_agent_todo_complete)
+  |-- registerTool(astron_single_agent_todo_get)
   |-- registerHttpRoute(/plugins/astron-todo-sync/todos)
   |
   `-- stateDir/
@@ -138,11 +138,13 @@ type TodoSummary = {
 };
 ```
 
-这是 `astronclaw_todo_get` 返回的轻量摘要。插件不再维护全局 `todo-state.json`，而是按 session 目录枚举该会话下的 `todo.json` 并即时生成摘要。
+这是 `astron_single_agent_todo_get` 返回的轻量摘要。插件不再维护全局 `todo-state.json`，而是按 session 目录枚举该会话下的 `todo.json` 并即时生成摘要。
 
 ## 工具协议
 
-### astronclaw_todo_create
+适用边界：本工具组只用于单 Agent 主对话任务。若当前任务由 `agent-team` 流程处理，或 agent 决定调用 `team_plan`、`team_provision`、`team_execute`、`team_update_progress`、`team_complete`、`team_cleanup` 等 team 工具，则不创建、不查询、不更新、不完成本插件的 JSON todo。team 任务进度由 `agent-team` 的 `todo.md` 和 `team_*` 工具负责。
+
+### astron_single_agent_todo_create
 
 用途：为当前会话创建一个新的 todo 列表。
 
@@ -167,7 +169,7 @@ type TodoSummary = {
 - `todo_id` 是可选基础 ID，工具会追加短随机后缀生成完整 `todoId`。
 - 后续更新必须使用工具返回的完整 `todoId`。
 
-### astronclaw_todo_update
+### astron_single_agent_todo_update
 
 用途：更新一个或多个 todo 项，也可以追加新事项。
 
@@ -195,7 +197,7 @@ type TodoSummary = {
 - 一次调用可以批量更新多个事项。
 - 若执行中发现新事项，可以通过 `append_items` 追加。
 
-### astronclaw_todo_get
+### astron_single_agent_todo_get
 
 用途：读取当前会话已有 todo，主要用于续接任务或回答状态查询。
 
@@ -219,7 +221,7 @@ type TodoSummary = {
 - 用户说“继续刚才的任务”“现在做到哪了”时，应先调用它。
 - 不传 `todo_id` 返回当前 session 的 todo 摘要列表。
 
-### astronclaw_todo_complete
+### astron_single_agent_todo_complete
 
 用途：标记整个 todo 已结束，并更新 `closedAt`。
 
@@ -278,10 +280,10 @@ async function pollTodos(sessionId: string) {
 
 隔离规则：
 
-- `astronclaw_todo_create` 创建的 todo 绑定当前 `sessionId`。
-- `astronclaw_todo_get` 默认只列当前会话的 todo。
-- `astronclaw_todo_update` 只能更新当前会话拥有的 todo。
-- `astronclaw_todo_complete` 只能完成当前会话拥有的 todo。
+- `astron_single_agent_todo_create` 创建的 todo 绑定当前 `sessionId`。
+- `astron_single_agent_todo_get` 默认只列当前会话的 todo。
+- `astron_single_agent_todo_update` 只能更新当前会话拥有的 todo。
+- `astron_single_agent_todo_complete` 只能完成当前会话拥有的 todo。
 
 这样做的原因是 OpenClaw 可能同时服务多个会话。工具层必须防止 Agent 在不同会话之间误读或误改 todo。HTTP 前端接口也按 `session_id` 读取对应 session 目录，避免全局扫描所有 todo。
 
@@ -296,19 +298,19 @@ async function pollTodos(sessionId: string) {
 推荐工具流程：
 
 ```text
-astronclaw_todo_create
+astron_single_agent_todo_create
   创建 4 个事项：分工、时间线、物品清单、检查标准
 
-astronclaw_todo_update
+astron_single_agent_todo_update
   标记“分工”完成，标记“时间线”进行中
 
-astronclaw_todo_update
+astron_single_agent_todo_update
   标记“时间线”完成，标记“物品清单”完成，标记“检查标准”进行中
 
-astronclaw_todo_update
+astron_single_agent_todo_update
   标记所有剩余事项完成
 
-astronclaw_todo_complete
+astron_single_agent_todo_complete
   完成整个 todo
 
 最终答复
@@ -330,4 +332,4 @@ astronclaw_todo_complete
 - 简单问答不会误触发 todo 工具。
 - 续接任务能先读取已有 todo，而不是重复创建。
 - HTTP 状态接口能按 `session_id` 准确反映当前会话下所有 todo 的状态。
-- 用户最终回复不泄漏 `astronclaw_todo_create`、`astronclaw_todo_update`、`astronclaw_todo_complete`、`astronclaw_todo_get`、`todoId`、`todo.json` 等内部实现细节。
+- 用户最终回复不泄漏 `astron_single_agent_todo_create`、`astron_single_agent_todo_update`、`astron_single_agent_todo_complete`、`astron_single_agent_todo_get`、`todoId`、`todo.json` 等内部实现细节。

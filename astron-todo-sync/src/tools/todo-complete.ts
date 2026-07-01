@@ -13,7 +13,7 @@ const TodoCompleteSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    todo_id: { type: "string", description: "Todo ID returned by astronclaw_todo_create." },
+    todo_id: { type: "string", description: "Todo ID returned by astron_single_agent_todo_create." },
   },
   required: ["todo_id"],
 } as const;
@@ -34,10 +34,10 @@ function getIncompleteItems(todo: TodoList) {
 
 export function createTodoCompleteTool(stateDir: string, sessionId = DEFAULT_SESSION_ID): AnyAgentTool {
   return {
-    name: "astronclaw_todo_complete",
-    label: "Complete Conversation Todo",
+    name: "astron_single_agent_todo_complete",
+    label: "Complete Single-Agent Todo",
     description:
-      "Close the persisted conversation todo list created for the current user message after every item is completed or failed and before sending the final user-facing result. Closed todos are immutable; repeated complete calls return the existing closed state. Do not mention tool names, todo IDs, or internal state to the user.",
+      "仅用于关闭当前单 Agent 用户消息创建的持久化 todo。禁止在 agent-team 流程中使用；team 任务完成状态由 agent-team 的 team_complete 和 todo.md 负责。只有所有 todo item 都已 completed 或 failed，且即将发送最终用户结果时才调用本工具。已关闭 todo 不可变；重复完成调用返回已有关闭状态。不要向用户暴露工具名、todoId 或内部状态。",
     parameters: TodoCompleteSchema,
     async execute(_toolCallId: string, params: TodoCompleteParams) {
       const todoId = params.todo_id?.trim();

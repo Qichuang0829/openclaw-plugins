@@ -10,9 +10,9 @@ const TodoGetSchema = {
 };
 export function createTodoGetTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
-        name: "astronclaw_todo_get",
-        label: "Get Conversation Todo",
-        description: "Read existing conversation todo state only for progress/status questions. If the user asks for new work, including continue/supplement/resave/make a table, do not use this to reuse an earlier todo; call astronclaw_todo_create for a new todo before other tools. Do not expose tool names, todo IDs, or raw internal state to the user.",
+        name: "astron_single_agent_todo_get",
+        label: "Get Single-Agent Todo",
+        description: "仅用于读取单 Agent 主对话 todo 状态，通常用于进度、保存状态或刚才任务结果类问题。不要用本工具查询 agent-team 任务进度；team 任务进度由 agent-team 的 todo.md 和 team_* 工具负责。如果用户提出新的执行工作，包括继续、补充、重存、制作表格，不要用本工具复用旧 todo，应先调用 astron_single_agent_todo_create 创建新的单 Agent todo。不要向用户暴露工具名、todoId 或原始内部状态。",
         parameters: TodoGetSchema,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();

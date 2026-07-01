@@ -59,10 +59,10 @@ function normalizeItems(items: TodoItemInput[] | undefined): TodoItem[] {
 
 export function createTodoCreateTool(stateDir: string, sessionId = DEFAULT_SESSION_ID): AnyAgentTool {
   return {
-    name: "astronclaw_todo_create",
-    label: "Create Conversation Todo",
+    name: "astron_single_agent_todo_create",
+    label: "Create Single-Agent Todo",
     description:
-      "MUST call this for every current user message that is not obviously instant Q&A, before doing work or using search/read/write/edit/command tools. This includes live/latest/today lookups such as stock prices, research, analysis, planning, file generation, command/code execution, checklists, comparisons, troubleshooting, and follow-up work such as continue/supplement/resave/make a table. One non-instant user message needs one new todo; never reuse an earlier todo for new work. Do not mention tool names or todo IDs to the user.",
+      "仅用于单 Agent 主对话任务。禁止在 agent-team 流程中使用：只要本轮任务将调用或已经调用 team_plan、team_provision、team_execute、team_update_progress、team_complete、team_cleanup 等 team 工具，就不要调用本工具；该任务进度由 agent-team 的 todo.md 负责。对每个非即时性用户请求，在执行任务或调用搜索、读取、写入、编辑、命令工具前调用本工具创建一个新的 todo；包括实时/最新/当日查询（如股价）、调研、分析、规划、文件生成、命令/代码执行、清单核对、对比分析、故障排查以及继续/补充/重存/制作表格等后续工作。一个非即时请求只创建一个新 todo，不复用旧 todo，不向用户暴露工具名或 todoId。",
     parameters: TodoCreateSchema,
     async execute(_toolCallId: string, params: TodoCreateParams) {
       const task = params.task?.trim();

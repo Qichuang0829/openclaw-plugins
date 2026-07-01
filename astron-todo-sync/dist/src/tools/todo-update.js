@@ -34,7 +34,7 @@ const TodoUpdateSchema = {
     type: "object",
     additionalProperties: false,
     properties: {
-        todo_id: { type: "string", description: "Todo ID returned by astronclaw_todo_create." },
+        todo_id: { type: "string", description: "Todo ID returned by astron_single_agent_todo_create." },
         updates: {
             type: "array",
             description: "Todo item status updates to apply.",
@@ -97,9 +97,9 @@ function deriveStatusAfterUpdate(currentStatus, items, changed) {
 }
 export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
-        name: "astronclaw_todo_update",
-        label: "Update Conversation Todo",
-        description: "Update only the todo created for the current user message. Never update an earlier todo for a later user message, including follow-up work like continue/supplement/resave/make a table; that later message needs astronclaw_todo_create first. Closed todos cannot be changed. Do not mention tool names or todo IDs in user-facing messages.",
+        name: "astron_single_agent_todo_update",
+        label: "Update Single-Agent Todo",
+        description: "仅用于更新 astron_single_agent_todo_create 为当前单 Agent 用户消息创建的 todo。禁止在 agent-team 流程中使用；team 任务进度由 agent-team 的 todo.md 和 team_update_progress/team_complete 负责。不要更新早前用户消息的 todo；继续、补充、重存、制作表格等新的后续工作应先创建新的单 Agent todo。已关闭 todo 不可修改。不要在用户可见消息中暴露工具名或 todoId。",
         parameters: TodoUpdateSchema,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();

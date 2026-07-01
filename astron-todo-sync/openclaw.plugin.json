@@ -1,7 +1,7 @@
 {
   "id": "astron-todo-sync",
   "name": "Astron Todo Sync",
-  "description": "Synchronize conversation todo/checklist state for multi-step tasks so UI and HTTP clients can show current user-visible todo status.",
+  "description": "Synchronize JSON todo/checklist state for non-instant single-agent chat tasks. Agent-team workflows keep their own todo.md progress.",
   "enabledByDefault": true,
   "activation": {
     "onStartup": true
@@ -9,10 +9,10 @@
   "skills": ["./skills"],
   "contracts": {
     "tools": [
-      "astronclaw_todo_create",
-      "astronclaw_todo_update",
-      "astronclaw_todo_complete",
-      "astronclaw_todo_get"
+      "astron_single_agent_todo_create",
+      "astron_single_agent_todo_update",
+      "astron_single_agent_todo_complete",
+      "astron_single_agent_todo_get"
     ]
   },
   "configSchema": {

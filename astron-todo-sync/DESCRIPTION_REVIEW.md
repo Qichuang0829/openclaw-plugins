@@ -1,3 +1,135 @@
+# Astron Todo Sync 描述评审摘录
+
+本文档整理 `astron-todo-sync` 插件当前暴露给 OpenClaw、模型和 skill 机制的描述文本，供与 team 插件冲突评审使用。
+
+## 插件级描述
+
+### package.json
+
+来源：`astron-todo-sync/package.json`
+
+- name: `@openclaw/astron-todo-sync`
+- description:
+
+```text
+OpenClaw plugin for synchronized single-agent conversation todo state.
+```
+
+### openclaw.plugin.json
+
+来源：`astron-todo-sync/openclaw.plugin.json`
+
+- id: `astron-todo-sync`
+- name: `Astron Todo Sync`
+- description:
+
+```text
+Synchronize JSON todo/checklist state for non-instant single-agent chat tasks. Agent-team workflows keep their own todo.md progress.
+```
+
+### 运行时插件入口
+
+来源：`astron-todo-sync/index.ts`
+
+- id: `astron-todo-sync`
+- name: `Astron Todo Sync`
+- description:
+
+```text
+Synchronize JSON todo progress for non-instant single-agent chat tasks; do not use for agent-team/team_* workflows, which manage their own todo.md progress.
+```
+
+备注：`astron-todo-sync/dist/index.js` 中的运行时 description 与 `index.ts` 一致。
+
+## 工具描述
+
+### astron_single_agent_todo_create
+
+来源：`astron-todo-sync/src/tools/todo-create.ts`
+
+- label: `Create Single-Agent Todo`
+- description:
+
+```text
+仅用于单 Agent 主对话任务。禁止在 agent-team 流程中使用：只要本轮任务将调用或已经调用 team_plan、team_provision、team_execute、team_update_progress、team_complete、team_cleanup 等 team 工具，就不要调用本工具；该任务进度由 agent-team 的 todo.md 负责。对每个非即时性用户请求，在执行任务或调用搜索、读取、写入、编辑、命令工具前调用本工具创建一个新的 todo；包括实时/最新/当日查询（如股价）、调研、分析、规划、文件生成、命令/代码执行、清单核对、对比分析、故障排查以及继续/补充/重存/制作表格等后续工作。一个非即时请求只创建一个新 todo，不复用旧 todo，不向用户暴露工具名或 todoId。
+```
+
+参数描述：
+
+| 参数 | 描述 |
+| --- | --- |
+| `todo_id` | `Optional base todo ID. Must be lowercase alphanumeric with hyphens; a random suffix is appended.` |
+| `task` | `Original user task represented by this conversation todo list.` |
+| `items` | `Initial todo items. Strings become item titles; objects can include id/title/description. Extra object fields such as status are accepted but ignored.` |
+| `items[].id` | `Stable todo item ID. Defaults to item-N.` |
+| `items[].title` | `Short user-visible todo item title.` |
+| `items[].description` | `Optional todo item details.` |
+
+### astron_single_agent_todo_update
+
+来源：`astron-todo-sync/src/tools/todo-update.ts`
+
+- label: `Update Single-Agent Todo`
+- description:
+
+```text
+仅用于更新 astron_single_agent_todo_create 为当前单 Agent 用户消息创建的 todo。禁止在 agent-team 流程中使用；team 任务进度由 agent-team 的 todo.md 和 team_update_progress/team_complete 负责。不要更新早前用户消息的 todo；继续、补充、重存、制作表格等新的后续工作应先创建新的单 Agent todo。已关闭 todo 不可修改。不要在用户可见消息中暴露工具名或 todoId。
+```
+
+参数描述：
+
+| 参数 | 描述 |
+| --- | --- |
+| `todo_id` | `Todo ID returned by astron_single_agent_todo_create.` |
+| `updates` | `Todo item status updates to apply.` |
+| `updates[].item_id` | `Todo item ID to update.` |
+| `updates[].item_index` | `1-based todo item index to update.` |
+| `updates[].status` | `New todo item status.` |
+| `updates[].artifact_paths` | `Artifact paths or URLs associated with this todo item.` |
+| `append_items` | `Optional new todo items to append while executing the same current user message. Do not append items for a later user message; create a new todo instead.` |
+| `append_items[].id` | `Stable todo item ID. Defaults to item-N.` |
+| `append_items[].title` | `Short user-visible todo item title.` |
+| `append_items[].description` | `Optional todo item details.` |
+
+### astron_single_agent_todo_complete
+
+来源：`astron-todo-sync/src/tools/todo-complete.ts`
+
+- label: `Complete Single-Agent Todo`
+- description:
+
+```text
+仅用于关闭当前单 Agent 用户消息创建的持久化 todo。禁止在 agent-team 流程中使用；team 任务完成状态由 agent-team 的 team_complete 和 todo.md 负责。只有所有 todo item 都已 completed 或 failed，且即将发送最终用户结果时才调用本工具。已关闭 todo 不可变；重复完成调用返回已有关闭状态。不要向用户暴露工具名、todoId 或内部状态。
+```
+
+参数描述：
+
+| 参数 | 描述 |
+| --- | --- |
+| `todo_id` | `Todo ID returned by astron_single_agent_todo_create.` |
+
+### astron_single_agent_todo_get
+
+来源：`astron-todo-sync/src/tools/todo-get.ts`
+
+- label: `Get Single-Agent Todo`
+- description:
+
+```text
+仅用于读取单 Agent 主对话 todo 状态，通常用于进度、保存状态或刚才任务结果类问题。不要用本工具查询 agent-team 任务进度；team 任务进度由 agent-team 的 todo.md 和 team_* 工具负责。如果用户提出新的执行工作，包括继续、补充、重存、制作表格，不要用本工具复用旧 todo，应先调用 astron_single_agent_todo_create 创建新的单 Agent todo。不要向用户暴露工具名、todoId 或原始内部状态。
+```
+
+参数描述：
+
+| 参数 | 描述 |
+| --- | --- |
+| `todo_id` | `Todo ID to read. If omitted, lists todo summaries.` |
+
+## 完整 Skill.md
+
+来源：`astron-todo-sync/skills/astron-todo-sync/SKILL.md`
+
+````markdown
 ---
 name: astron-todo-sync
 description: 当用户消息不是明显即问即答，且本轮任务不由 agent-team 流程处理时加载本技能。对每个单 Agent 非即时请求，在执行任务或调用搜索、读取、写入、编辑、命令执行等工具前，必须先调用 astron_single_agent_todo_create。适用场景包括实时、最新、今天类查询（如股价）、分析、报告、规划、文件生成、清单、排查、对比，以及“继续补充并重新保存/整理成表格/再做一版”等后续工作。如果 agent 决定调用 team_plan、team_provision、team_execute、team_update_progress、team_complete、team_cleanup 等 team 工具，不要使用本技能；该任务进度由 agent-team 的 todo.md 负责。只有问候、简单单步问答、翻译、改写、起名、概念解释、纯进度询问、用户明确不要 todo，或明显即时一步回复时才跳过。
@@ -133,3 +265,4 @@ astron_single_agent_todo_complete(
 - 不要把基础 `todo_id` 当作完整 `todoId` 使用。
 - 不要为明显即问即答的小任务创建 todo；如果需要等待、工具、整理、分析或执行过程，就不是即问即答，应创建 todo。
 - 不要在 agent-team 流程中创建、查询、更新或完成本插件的 todo；team 进度由 `agent-team` 的 `todo.md` 和 `team_*` 工具负责。
+````

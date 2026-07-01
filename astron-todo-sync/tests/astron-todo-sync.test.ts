@@ -39,6 +39,24 @@ describe("astron-todo-sync", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
+  it("exposes single-agent tool names and excludes agent-team progress", () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const completeTool = createTodoCompleteTool(tmpDir);
+    const getTool = createTodoGetTool(tmpDir);
+
+    assert.equal(createTool.name, "astron_single_agent_todo_create");
+    assert.equal(updateTool.name, "astron_single_agent_todo_update");
+    assert.equal(completeTool.name, "astron_single_agent_todo_complete");
+    assert.equal(getTool.name, "astron_single_agent_todo_get");
+
+    for (const tool of [createTool, updateTool, completeTool, getTool]) {
+      assert.match(tool.description, /agent-team/);
+    }
+    assert.match(createTool.description, /team_plan/);
+    assert.match(getTool.description, /不要用本工具查询 agent-team 任务进度/);
+  });
+
   it("creates todo state and todo.json", async () => {
     const tool = createTodoCreateTool(tmpDir);
     const result = parseToolResult(
