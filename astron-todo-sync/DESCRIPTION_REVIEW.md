@@ -54,17 +54,6 @@ Synchronize JSON todo progress for non-instant single-agent chat tasks; do not u
 禁止在Team会话场景中使用，适用于单Agent为非即时性query生成新的待办事项。例如对实时/最新/当日信息的查询，例如股价、调研、分析、规划、文件生成、命令/代码执行、清单核对、对比分析、故障排查，以及诸如继续、补充、重存、制作表格等后续工作。
 ```
 
-参数描述：
-
-| 参数 | 描述 |
-| --- | --- |
-| `todo_id` | `Optional base todo ID. Must be lowercase alphanumeric with hyphens; a random suffix is appended.` |
-| `task` | `Original user task represented by this conversation todo list.` |
-| `items` | `Initial todo items. Strings become item titles; objects can include id/title/description. Extra object fields such as status are accepted but ignored.` |
-| `items[].id` | `Stable todo item ID. Defaults to item-N.` |
-| `items[].title` | `Short user-visible todo item title.` |
-| `items[].description` | `Optional todo item details.` |
-
 ### astron_single_agent_todo_update
 
 来源：`astron-todo-sync/src/tools/todo-update.ts`
@@ -75,21 +64,6 @@ Synchronize JSON todo progress for non-instant single-agent chat tasks; do not u
 ```text
 仅用于更新 astron_single_agent_todo_create 为当前单 Agent 用户消息创建的 todo。禁止在 agent-team 流程中使用。不要更新早前用户消息的 todo；继续、补充、重存、制作表格等新的后续工作应先创建新的单 Agent todo。已关闭 todo 不可修改。不要在用户可见消息中暴露工具名或 todoId。
 ```
-
-参数描述：
-
-| 参数 | 描述 |
-| --- | --- |
-| `todo_id` | `Todo ID returned by astron_single_agent_todo_create.` |
-| `updates` | `Todo item status updates to apply.` |
-| `updates[].item_id` | `Todo item ID to update.` |
-| `updates[].item_index` | `1-based todo item index to update.` |
-| `updates[].status` | `New todo item status.` |
-| `updates[].artifact_paths` | `Artifact paths or URLs associated with this todo item.` |
-| `append_items` | `Optional new todo items to append while executing the same current user message. Do not append items for a later user message; create a new todo instead.` |
-| `append_items[].id` | `Stable todo item ID. Defaults to item-N.` |
-| `append_items[].title` | `Short user-visible todo item title.` |
-| `append_items[].description` | `Optional todo item details.` |
 
 ### astron_single_agent_todo_complete
 
@@ -102,12 +76,6 @@ Synchronize JSON todo progress for non-instant single-agent chat tasks; do not u
 仅用于关闭当前单 Agent 用户消息创建的持久化 todo。禁止在 agent-team 流程中使用。只有所有 todo item 都已 completed 或 failed，且即将发送最终用户结果时才调用本工具。已关闭 todo 不可变；重复完成调用返回已有关闭状态。不要向用户暴露工具名、todoId 或内部状态。
 ```
 
-参数描述：
-
-| 参数 | 描述 |
-| --- | --- |
-| `todo_id` | `Todo ID returned by astron_single_agent_todo_create.` |
-
 ### astron_single_agent_todo_get
 
 来源：`astron-todo-sync/src/tools/todo-get.ts`
@@ -118,12 +86,6 @@ Synchronize JSON todo progress for non-instant single-agent chat tasks; do not u
 ```text
 仅用于读取单 Agent 主对话 todo 状态，通常用于进度、保存状态或刚才任务结果类问题。不要用本工具查询 agent-team 任务进度。如果用户提出新的执行工作，包括继续、补充、重存、制作表格，不要用本工具复用旧 todo，应先调用 astron_single_agent_todo_create 创建新的单 Agent todo。不要向用户暴露工具名、todoId 或原始内部状态。
 ```
-
-参数描述：
-
-| 参数 | 描述 |
-| --- | --- |
-| `todo_id` | `Todo ID to read. If omitted, lists todo summaries.` |
 
 ## 完整 Skill.md
 
