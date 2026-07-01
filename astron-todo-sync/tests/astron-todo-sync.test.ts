@@ -50,10 +50,13 @@ describe("astron-todo-sync", () => {
     assert.equal(completeTool.name, "astron_single_agent_todo_complete");
     assert.equal(getTool.name, "astron_single_agent_todo_get");
 
-    for (const tool of [createTool, updateTool, completeTool, getTool]) {
+    assert.equal(
+      createTool.description,
+      "禁止在Team会话场景中使用，适用于单Agent为非即时性query生成新的待办事项。例如对实时/最新/当日信息的查询，例如股价、调研、分析、规划、文件生成、命令/代码执行、清单核对、对比分析、故障排查，以及诸如继续、补充、重存、制作表格等后续工作。",
+    );
+    for (const tool of [updateTool, completeTool, getTool]) {
       assert.match(tool.description, /agent-team/);
     }
-    assert.match(createTool.description, /team_plan/);
     assert.match(getTool.description, /不要用本工具查询 agent-team 任务进度/);
   });
 

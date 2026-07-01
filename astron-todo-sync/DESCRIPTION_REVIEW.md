@@ -51,7 +51,7 @@ Synchronize JSON todo progress for non-instant single-agent chat tasks; do not u
 - description:
 
 ```text
-仅用于单 Agent 主对话任务。禁止在 agent-team 流程中使用：只要本轮任务将调用或已经调用 team_plan、team_provision、team_execute、team_update_progress、team_complete、team_cleanup 等 team 工具，就不要调用本工具；该任务进度由 agent-team 的 todo.md 负责。对每个非即时性用户请求，在执行任务或调用搜索、读取、写入、编辑、命令工具前调用本工具创建一个新的 todo；包括实时/最新/当日查询（如股价）、调研、分析、规划、文件生成、命令/代码执行、清单核对、对比分析、故障排查以及继续/补充/重存/制作表格等后续工作。一个非即时请求只创建一个新 todo，不复用旧 todo，不向用户暴露工具名或 todoId。
+禁止在Team会话场景中使用，适用于单Agent为非即时性query生成新的待办事项。例如对实时/最新/当日信息的查询，例如股价、调研、分析、规划、文件生成、命令/代码执行、清单核对、对比分析、故障排查，以及诸如继续、补充、重存、制作表格等后续工作。
 ```
 
 参数描述：
