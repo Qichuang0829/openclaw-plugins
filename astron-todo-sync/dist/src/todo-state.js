@@ -195,6 +195,9 @@ export async function readTodoSummaries(stateDir, sessionId) {
     const todos = await readTodosForSession(stateDir, sessionId);
     return todos.map((todo) => summarizeTodo(stateDir, todo));
 }
+export async function readLatestTodoForSession(stateDir, sessionId) {
+    return (await readTodosForSession(stateDir, sessionId))[0] ?? null;
+}
 export async function writeTodo(stateDir, todo) {
     const sessionId = normalizeSessionId(todo.sessionId);
     const todoDir = getTodoDir(stateDir, sessionId, todo.todoId);
@@ -215,4 +218,30 @@ export async function createTodoWorkspace(stateDir, todo) {
 }
 export async function updateTodoSummary(stateDir, todo) {
     await touchSessionMetadata(stateDir, todo.sessionId, todo.updatedAt);
+}
+export async function failLatestOpenTodoForSession(stateDir, sessionId, timestamp) {
+    const todo = await readLatestTodoForSession(stateDir, sessionId);
+    if (!todo || todo.status === "completed" || todo.status === "failed") {
+        return null;
+    }
+    const nextTodo = {
+        ...todo,
+        status: "failed",
+        items: todo.items.map((item) => {
+            if (item.status === "completed" || item.status === "failed") {
+                return item;
+            }
+            return {
+                ...item,
+                status: "failed",
+                startedAt: item.startedAt ?? timestamp,
+                completedAt: item.completedAt ?? timestamp,
+            };
+        }),
+        updatedAt: timestamp,
+        closedAt: timestamp,
+    };
+    await writeTodo(stateDir, nextTodo);
+    await updateTodoSummary(stateDir, nextTodo);
+    return nextTodo;
 }

@@ -246,6 +246,13 @@ export async function readTodoSummaries(
   return todos.map((todo) => summarizeTodo(stateDir, todo));
 }
 
+export async function readLatestTodoForSession(
+  stateDir: string,
+  sessionId: string,
+): Promise<TodoList | null> {
+  return (await readTodosForSession(stateDir, sessionId))[0] ?? null;
+}
+
 export async function writeTodo(stateDir: string, todo: TodoList): Promise<void> {
   const sessionId = normalizeSessionId(todo.sessionId);
   const todoDir = getTodoDir(stateDir, sessionId, todo.todoId);
@@ -273,4 +280,37 @@ export async function updateTodoSummary(
   todo: TodoList,
 ): Promise<void> {
   await touchSessionMetadata(stateDir, todo.sessionId, todo.updatedAt);
+}
+
+export async function failLatestOpenTodoForSession(
+  stateDir: string,
+  sessionId: string,
+  timestamp: string,
+): Promise<TodoList | null> {
+  const todo = await readLatestTodoForSession(stateDir, sessionId);
+  if (!todo || todo.status === "completed" || todo.status === "failed") {
+    return null;
+  }
+
+  const nextTodo: TodoList = {
+    ...todo,
+    status: "failed",
+    items: todo.items.map((item) => {
+      if (item.status === "completed" || item.status === "failed") {
+        return item;
+      }
+      return {
+        ...item,
+        status: "failed",
+        startedAt: item.startedAt ?? timestamp,
+        completedAt: item.completedAt ?? timestamp,
+      };
+    }),
+    updatedAt: timestamp,
+    closedAt: timestamp,
+  };
+
+  await writeTodo(stateDir, nextTodo);
+  await updateTodoSummary(stateDir, nextTodo);
+  return nextTodo;
 }

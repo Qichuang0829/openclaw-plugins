@@ -9,7 +9,7 @@
 
 通过。
 
-- 单元测试：18/18 通过。
+- 单元测试：20/20 通过。
 - OpenClaw 插件检查：`openclaw plugins doctor` 无问题。
 - HTTP 路由：单一前端会话 todo 列表接口、缺少 `session_id`、未知 session、不支持方法均按预期返回。
 - 5 个日常任务调试集：5/5 通过。

@@ -4,7 +4,8 @@ import { createTodoCreateTool } from "./src/tools/todo-create.js";
 import { createTodoGetTool } from "./src/tools/todo-get.js";
 import { createTodoUpdateTool } from "./src/tools/todo-update.js";
 import { createTodoHttpHandler } from "./src/http.js";
-import { normalizeSessionId } from "./src/todo-state.js";
+import { failLatestOpenTodoForSession, normalizeSessionId } from "./src/todo-state.js";
+import { nowIso } from "./src/tool-utils.js";
 
 function resolveStateDir(api: any): string {
   const fromRuntime = api?.runtime?.state?.resolveStateDir?.();
@@ -38,6 +39,26 @@ const plugin = {
       (ctx: any) => createTodoGetTool(stateDir, normalizeSessionId(ctx?.sessionId)),
       { name: "astron_single_agent_todo_get" },
     );
+
+    api.on?.("agent_end", async (_event: any, ctx: any) => {
+      if (!ctx?.sessionId) {
+        return;
+      }
+      try {
+        const closedTodo = await failLatestOpenTodoForSession(
+          stateDir,
+          normalizeSessionId(ctx.sessionId),
+          nowIso(),
+        );
+        if (closedTodo) {
+          api.logger?.info?.(`[${PLUGIN_ID}] closed unfinished todo on agent_end: ${closedTodo.todoId}`);
+        }
+      } catch (err) {
+        api.logger?.warn?.(
+          `[${PLUGIN_ID}] failed to close unfinished todo on agent_end: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    });
 
     if (typeof api.registerHttpRoute === "function") {
       api.registerHttpRoute({

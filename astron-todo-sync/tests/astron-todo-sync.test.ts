@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, it, beforeEach, afterEach } from "node:test";
+import plugin from "../index.js";
 import { DEFAULT_SESSION_ID } from "../src/constants.js";
 import { createTodoHttpHandler, resolveTodoHttpResponse } from "../src/http.js";
 import {
@@ -22,6 +23,31 @@ function parseToolResult(result: { content: Array<{ text: string }> }) {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type HookHandler = (event: unknown, ctx: unknown) => unknown | Promise<unknown>;
+
+function registerPluginForTest(stateDir: string) {
+  const hooks = new Map<string, HookHandler[]>();
+  plugin.register({
+    stateDir,
+    registerTool() {},
+    registerHttpRoute() {},
+    on(name: string, handler: HookHandler) {
+      hooks.set(name, [...(hooks.get(name) ?? []), handler]);
+    },
+    logger: {
+      info() {},
+      warn() {},
+    },
+  });
+  return { hooks };
+}
+
+async function emitHook(hooks: Map<string, HookHandler[]>, name: string, event: unknown, ctx: unknown) {
+  for (const handler of hooks.get(name) ?? []) {
+    await handler(event, ctx);
+  }
 }
 
 const SESSION_A = "11111111-1111-1111-1111-111111111111";
@@ -464,6 +490,69 @@ describe("astron-todo-sync", () => {
     assert.match(completed.error, /Cannot complete todo/);
     const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
     assert.equal(todo.status, "running");
+  });
+
+  it("fails the latest open todo on agent_end", async () => {
+    const { hooks } = registerPluginForTest(tmpDir);
+    const createTool = createTodoCreateTool(tmpDir, SESSION_A);
+    const first = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Older unfinished task",
+        items: ["Old step"],
+      }),
+    );
+    await wait(10);
+    const latest = parseToolResult(
+      await createTool.execute("call-2", {
+        task: "Latest unfinished task",
+        items: ["Latest step"],
+      }),
+    );
+
+    await emitHook(hooks, "agent_end", { success: true }, { sessionId: SESSION_A });
+
+    const olderTodo = await readTodo(tmpDir, SESSION_A, first.todoId);
+    const latestTodo = await readTodo(tmpDir, SESSION_A, latest.todoId);
+    assert.equal(olderTodo.status, "running");
+    assert.equal(latestTodo.status, "failed");
+    assert.equal(latestTodo.items[0]!.status, "failed");
+    assert.equal(typeof latestTodo.items[0]!.completedAt, "string");
+    assert.equal(typeof latestTodo.closedAt, "string");
+
+    const statusResponse = await resolveTodoHttpResponse(
+      tmpDir,
+      "GET",
+      `/plugins/astron-todo-sync/todos?session_id=${SESSION_A}`,
+    );
+    assert.equal((statusResponse.body as any).todos[0].todoId, latest.todoId);
+    assert.equal((statusResponse.body as any).todos[0].status, "failed");
+  });
+
+  it("does not change the latest closed todo on agent_end", async () => {
+    const { hooks } = registerPluginForTest(tmpDir);
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const completeTool = createTodoCompleteTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Closed before agent_end",
+        items: ["Done"],
+      }),
+    );
+
+    await updateTool.execute("call-2", {
+      todo_id: created.todoId,
+      updates: [{ item_index: 1, status: "completed" }],
+    });
+    await completeTool.execute("call-3", {
+      todo_id: created.todoId,
+    });
+
+    const beforeHook = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+    await emitHook(hooks, "agent_end", { success: false }, { sessionId: DEFAULT_SESSION_ID });
+    const afterHook = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+
+    assert.deepEqual(afterHook, beforeHook);
   });
 
   it("serves session todos over the HTTP resolver", async () => {
