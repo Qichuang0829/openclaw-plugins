@@ -15,6 +15,25 @@ function resolveStateDir(api: any): string {
   return api?.stateDir ?? ".openclaw";
 }
 
+function shouldFailOpenTodoOnAgentEnd(event: any): boolean {
+  if (!event || typeof event !== "object") {
+    return false;
+  }
+  if (event.success === true) {
+    return false;
+  }
+  if (event.success === false) {
+    return true;
+  }
+  if (typeof event.error === "string" && event.error.trim().length > 0) {
+    return true;
+  }
+
+  const messages = Array.isArray(event.messages) ? event.messages : [];
+  const lastAssistant = [...messages].reverse().find((message) => message?.role === "assistant");
+  return lastAssistant?.stopReason === "error" || lastAssistant?.stopReason === "aborted";
+}
+
 const plugin = {
   id: PLUGIN_ID,
   name: "Astron Todo Sync",
@@ -40,8 +59,11 @@ const plugin = {
       { name: "astron_single_agent_todo_get" },
     );
 
-    api.on?.("agent_end", async (_event: any, ctx: any) => {
+    api.on?.("agent_end", async (event: any, ctx: any) => {
       if (!ctx?.sessionId) {
+        return;
+      }
+      if (!shouldFailOpenTodoOnAgentEnd(event)) {
         return;
       }
       try {

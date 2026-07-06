@@ -13,6 +13,23 @@ function resolveStateDir(api) {
     }
     return api?.stateDir ?? ".openclaw";
 }
+function shouldFailOpenTodoOnAgentEnd(event) {
+    if (!event || typeof event !== "object") {
+        return false;
+    }
+    if (event.success === true) {
+        return false;
+    }
+    if (event.success === false) {
+        return true;
+    }
+    if (typeof event.error === "string" && event.error.trim().length > 0) {
+        return true;
+    }
+    const messages = Array.isArray(event.messages) ? event.messages : [];
+    const lastAssistant = [...messages].reverse().find((message) => message?.role === "assistant");
+    return lastAssistant?.stopReason === "error" || lastAssistant?.stopReason === "aborted";
+}
 const plugin = {
     id: PLUGIN_ID,
     name: "Astron Todo Sync",
@@ -23,8 +40,11 @@ const plugin = {
         api.registerTool((ctx) => createTodoUpdateTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astron_single_agent_todo_update" });
         api.registerTool((ctx) => createTodoCompleteTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astron_single_agent_todo_complete" });
         api.registerTool((ctx) => createTodoGetTool(stateDir, normalizeSessionId(ctx?.sessionId)), { name: "astron_single_agent_todo_get" });
-        api.on?.("agent_end", async (_event, ctx) => {
+        api.on?.("agent_end", async (event, ctx) => {
             if (!ctx?.sessionId) {
+                return;
+            }
+            if (!shouldFailOpenTodoOnAgentEnd(event)) {
                 return;
             }
             try {

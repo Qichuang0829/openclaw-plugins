@@ -436,6 +436,8 @@ describe("astron-todo-sync", () => {
     const afterUpdate = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
 
     assert.match(updated.error, /already closed/);
+    assert.match(updated.error, /Do not retry updating this todo_id/);
+    assert.match(updated.error, /astron_single_agent_todo_create/);
     assert.deepEqual(afterUpdate, beforeUpdate);
   });
 
@@ -492,7 +494,26 @@ describe("astron-todo-sync", () => {
     assert.equal(todo.status, "running");
   });
 
-  it("fails the latest open todo on agent_end", async () => {
+  it("keeps open todo running on successful agent_end", async () => {
+    const { hooks } = registerPluginForTest(tmpDir);
+    const createTool = createTodoCreateTool(tmpDir, SESSION_A);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Continue after compaction",
+        items: ["Write report", "Upload report"],
+      }),
+    );
+
+    await emitHook(hooks, "agent_end", { success: true }, { sessionId: SESSION_A });
+
+    const todo = await readTodo(tmpDir, SESSION_A, created.todoId);
+    assert.equal(todo.status, "running");
+    assert.equal(todo.items[0]!.status, "pending");
+    assert.equal(todo.items[1]!.status, "pending");
+    assert.equal(todo.closedAt, undefined);
+  });
+
+  it("fails the latest open todo on failed agent_end", async () => {
     const { hooks } = registerPluginForTest(tmpDir);
     const createTool = createTodoCreateTool(tmpDir, SESSION_A);
     const first = parseToolResult(
@@ -509,7 +530,7 @@ describe("astron-todo-sync", () => {
       }),
     );
 
-    await emitHook(hooks, "agent_end", { success: true }, { sessionId: SESSION_A });
+    await emitHook(hooks, "agent_end", { success: false }, { sessionId: SESSION_A });
 
     const olderTodo = await readTodo(tmpDir, SESSION_A, first.todoId);
     const latestTodo = await readTodo(tmpDir, SESSION_A, latest.todoId);

@@ -155,7 +155,7 @@ export function createTodoUpdateTool(stateDir: string, sessionId = DEFAULT_SESSI
       }
       if (todo.status === "completed" || todo.status === "failed") {
         return jsonResult({
-          error: `Todo "${todoId}" is already closed and cannot be updated.`,
+          error: `Todo "${todoId}" is already closed and cannot be updated. Do not retry updating this todo_id. For continued, supplemental, retry, or regenerated work, call astron_single_agent_todo_create to create a new single-agent todo for the current work.`,
           status: todo.status,
           todo,
         });
