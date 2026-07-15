@@ -1,0 +1,22 @@
+{
+  "name": "@openclaw/claw-core-deduct-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plugin that calls resource deduction API on every LLM output event",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "runtimeExtensions": [
+      "./dist/index.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

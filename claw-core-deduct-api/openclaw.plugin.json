@@ -1,0 +1,24 @@
+{
+  "id": "claw-core-deduct-api",
+  "name": "Claw Core Deduct API",
+  "type": "utility",
+  "description": "Calls resource deduction API on every LLM output event",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "api_key": {
+        "type": "string",
+        "description": "API key used for Bearer authentication"
+      },
+      "client_type": {
+        "type": "string",
+        "description": "Client type forwarded to the deduction API"
+      },
+      "deduct_api_url": {
+        "type": "string",
+        "description": "URL of the resource deduction API endpoint"
+      }
+    }
+  }
+}
