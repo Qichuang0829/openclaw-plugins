@@ -207,9 +207,9 @@ export async function writeTodo(stateDir, todo) {
 export async function createTodoWorkspace(stateDir, todo) {
     const sessionId = normalizeSessionId(todo.sessionId);
     const todoDir = getTodoDir(stateDir, sessionId, todo.todoId);
+    await touchSessionMetadata(stateDir, sessionId, todo.updatedAt);
     await fs.mkdir(getArtifactsDir(stateDir, sessionId, todo.todoId), { recursive: true });
     await writeTodo(stateDir, { ...todo, sessionId });
-    await touchSessionMetadata(stateDir, sessionId, todo.updatedAt);
     const summary = summarizeTodo(stateDir, { ...todo, sessionId });
     return {
         ...summary,
@@ -241,7 +241,7 @@ export async function failLatestOpenTodoForSession(stateDir, sessionId, timestam
         updatedAt: timestamp,
         closedAt: timestamp,
     };
-    await writeTodo(stateDir, nextTodo);
     await updateTodoSummary(stateDir, nextTodo);
+    await writeTodo(stateDir, nextTodo);
     return nextTodo;
 }

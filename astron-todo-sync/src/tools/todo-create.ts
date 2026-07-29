@@ -1,7 +1,7 @@
 import { DEFAULT_SESSION_ID } from "../constants.js";
 import { createTodoIdFromBase, createTodoWorkspace } from "../todo-state.js";
 import type { AnyAgentTool, TodoItem, TodoList } from "../types.js";
-import { jsonResult, nowIso } from "../tool-utils.js";
+import { errorResult, jsonResult, nowIso } from "../tool-utils.js";
 
 const TodoItemObjectSchema = {
   type: "object",
@@ -67,7 +67,12 @@ export function createTodoCreateTool(stateDir: string, sessionId = DEFAULT_SESSI
     async execute(_toolCallId: string, params: TodoCreateParams) {
       const task = params.task?.trim();
       if (!task) {
-        return jsonResult({ error: "task is required" });
+        return errorResult("INVALID_ARGUMENT", "task is required", {
+          nextAction: {
+            tool: "astron_single_agent_todo_create",
+            instruction: "Provide a non-empty task and call the create tool again.",
+          },
+        });
       }
 
       const timestamp = nowIso();
@@ -75,7 +80,16 @@ export function createTodoCreateTool(stateDir: string, sessionId = DEFAULT_SESSI
       try {
         todoId = createTodoIdFromBase(params.todo_id);
       } catch (err) {
-        return jsonResult({ error: err instanceof Error ? err.message : String(err) });
+        return errorResult(
+          "INVALID_ARGUMENT",
+          err instanceof Error ? err.message : String(err),
+          {
+            nextAction: {
+              tool: "astron_single_agent_todo_create",
+              instruction: "Correct the todo_id base and call the create tool again.",
+            },
+          },
+        );
       }
 
       const todo: TodoList = {
@@ -88,12 +102,16 @@ export function createTodoCreateTool(stateDir: string, sessionId = DEFAULT_SESSI
         updatedAt: timestamp,
       };
 
-      const summary = await createTodoWorkspace(stateDir, todo);
-      return jsonResult({
-        success: true,
-        ...summary,
-        todo,
-      });
+      try {
+        const summary = await createTodoWorkspace(stateDir, todo);
+        return jsonResult({
+          success: true,
+          ...summary,
+          todo,
+        });
+      } catch {
+        return errorResult("INTERNAL_ERROR", "Failed to create todo state.");
+      }
     },
   } as AnyAgentTool;
 }

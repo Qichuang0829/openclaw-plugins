@@ -1,6 +1,6 @@
 import { DEFAULT_SESSION_ID } from "../constants.js";
 import { readTodo, todoBelongsToSessionId, updateTodoSummary, validateTodoId, writeTodo, } from "../todo-state.js";
-import { jsonResult, nowIso } from "../tool-utils.js";
+import { errorResult, isErrorCode, jsonResult, nowIso } from "../tool-utils.js";
 const UpdateSchema = {
     type: "object",
     additionalProperties: false,
@@ -35,9 +35,9 @@ const TodoUpdateSchema = {
     additionalProperties: false,
     properties: {
         todo_id: { type: "string", description: "Todo ID returned by astron_single_agent_todo_create." },
-        updates: {
+        items: {
             type: "array",
-            description: "Todo item status updates to apply.",
+            description: "Todo item status changes to apply.",
             items: UpdateSchema,
         },
         append_items: {
@@ -50,6 +50,23 @@ const TodoUpdateSchema = {
     },
     required: ["todo_id"],
 };
+function prepareTodoUpdateArguments(args) {
+    if (typeof args !== "object" || args === null || Array.isArray(args)) {
+        return args;
+    }
+    const record = args;
+    const hasItems = Object.prototype.hasOwnProperty.call(record, "items");
+    const hasUpdates = Object.prototype.hasOwnProperty.call(record, "updates");
+    if (hasItems && hasUpdates) {
+        const { updates: _legacyUpdates, ...prepared } = record;
+        return prepared;
+    }
+    if (!hasItems && Array.isArray(record.updates)) {
+        const { updates, ...prepared } = record;
+        return { ...prepared, items: updates };
+    }
+    return args;
+}
 function makeItem(item, index) {
     const objectItem = typeof item === "string" ? { title: item, description: "" } : { ...item };
     return {
@@ -99,34 +116,63 @@ export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astron_single_agent_todo_update",
         label: "Update Single-Agent Todo",
-        description: "仅用于更新 astron_single_agent_todo_create 为当前单 Agent 用户消息创建的 todo。禁止在 agent-team 流程中使用。不要更新早前用户消息的 todo；继续、补充、重存、制作表格等新的后续工作应先创建新的单 Agent todo。已关闭 todo 不可修改。不要在用户可见消息中暴露工具名或 todoId。",
+        description: "状态变更必须通过顶层 items 参数提交，不要使用 updates。仅用于更新 astron_single_agent_todo_create 为当前单 Agent 用户消息创建的 todo。禁止在 agent-team 流程中使用。不要更新早前用户消息的 todo；继续、补充、重存、制作表格等新的后续工作应先创建新的单 Agent todo。已关闭 todo 不可修改。不要在用户可见消息中暴露工具名或 todoId。",
         parameters: TodoUpdateSchema,
+        prepareArguments: prepareTodoUpdateArguments,
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();
             if (!todoId) {
-                return jsonResult({ error: "todo_id is required" });
+                return errorResult("INVALID_ARGUMENT", "todo_id is required", {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_update",
+                        instruction: "Provide the current todo_id and call the update tool again.",
+                    },
+                });
             }
             const validationError = validateTodoId(todoId);
             if (validationError) {
-                return jsonResult({ error: validationError });
+                return errorResult("INVALID_ARGUMENT", validationError, {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_update",
+                        instruction: "Correct the todo_id and call the update tool again.",
+                    },
+                });
             }
             let todo;
             try {
                 todo = await readTodo(stateDir, sessionId, todoId);
             }
             catch (err) {
-                return jsonResult({
-                    error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
-                });
+                if (isErrorCode(err, "ENOENT")) {
+                    return errorResult("TODO_UNAVAILABLE", `Todo "${todoId}" is not available in this session.`, {
+                        nextAction: {
+                            tool: "astron_single_agent_todo_get",
+                            instruction: "List todos available in the current session without reusing this todo_id.",
+                            arguments: {},
+                        },
+                    });
+                }
+                return errorResult("INTERNAL_ERROR", "Failed to read todo state.");
             }
             if (!todoBelongsToSessionId(todo, sessionId)) {
-                return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
+                return errorResult("TODO_UNAVAILABLE", `Todo "${todoId}" is not available in this session.`, {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_get",
+                        instruction: "List todos available in the current session without reusing this todo_id.",
+                        arguments: {},
+                    },
+                });
             }
             if (todo.status === "completed" || todo.status === "failed") {
-                return jsonResult({
-                    error: `Todo "${todoId}" is already closed and cannot be updated. Do not retry updating this todo_id. For continued, supplemental, retry, or regenerated work, call astron_single_agent_todo_create to create a new single-agent todo for the current work.`,
-                    status: todo.status,
-                    todo,
+                return errorResult("TODO_CLOSED", `Todo "${todoId}" is already closed and cannot be updated. Do not retry updating this todo_id. For continued, supplemental, retry, or regenerated work, call astron_single_agent_todo_create to create a new single-agent todo for the current work.`, {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_create",
+                        instruction: "Create a new single-agent todo from the current user request without reusing the closed todo_id.",
+                    },
+                    extra: {
+                        status: todo.status,
+                        todo,
+                    },
                 });
             }
             const timestamp = nowIso();
@@ -134,14 +180,18 @@ export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
             for (const item of params.append_items ?? []) {
                 nextItems.push(makeItem(item, nextItems.length));
             }
-            for (const update of params.updates ?? []) {
+            for (const update of params.items ?? []) {
                 const index = resolveItemIndex({ items: nextItems }, update);
                 if (index < 0 || index >= nextItems.length) {
-                    return jsonResult({
-                        error: `Todo item not found for update ${JSON.stringify({
-                            item_id: update.item_id,
-                            item_index: update.item_index,
-                        })}`,
+                    return errorResult("TODO_ITEM_NOT_FOUND", `Todo item not found for update ${JSON.stringify({
+                        item_id: update.item_id,
+                        item_index: update.item_index,
+                    })}`, {
+                        nextAction: {
+                            tool: "astron_single_agent_todo_get",
+                            instruction: "Read the current todo to refresh valid item IDs or indexes before updating again.",
+                            arguments: { todo_id: todoId },
+                        },
                     });
                 }
                 const current = nextItems[index];
@@ -152,12 +202,17 @@ export function createTodoUpdateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
             }
             const nextTodo = {
                 ...todo,
-                status: deriveStatusAfterUpdate(todo.status, nextItems, Boolean(params.append_items?.length || params.updates?.length)),
+                status: deriveStatusAfterUpdate(todo.status, nextItems, Boolean(params.append_items?.length || params.items?.length)),
                 items: nextItems,
                 updatedAt: timestamp,
             };
-            await writeTodo(stateDir, nextTodo);
-            await updateTodoSummary(stateDir, nextTodo);
+            try {
+                await updateTodoSummary(stateDir, nextTodo);
+                await writeTodo(stateDir, nextTodo);
+            }
+            catch {
+                return errorResult("INTERNAL_ERROR", "Failed to update todo state.");
+            }
             return jsonResult({ success: true, todo: nextTodo });
         },
     };

@@ -21,6 +21,19 @@ function parseToolResult(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0]!.text);
 }
 
+function assertToolError(result: any, code: string, nextTool?: string) {
+  assert.equal(result.success, false);
+  assert.equal(typeof result.error, "string");
+  assert.ok(result.error.length > 0);
+  assert.equal(result.code, code);
+  assert.equal(result.retryable, false);
+  if (nextTool) {
+    assert.equal(result.next_action?.tool, nextTool);
+    assert.equal(typeof result.next_action?.instruction, "string");
+    assert.ok(result.next_action.instruction.length > 0);
+  }
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -84,6 +97,72 @@ describe("astron-todo-sync", () => {
       assert.match(tool.description, /agent-team/);
     }
     assert.match(getTool.description, /不要用本工具查询 agent-team 任务进度/);
+  });
+
+  it("publishes only items and prepares legacy update arguments", () => {
+    const tool = createTodoUpdateTool(tmpDir);
+    const schema = tool.parameters as any;
+
+    assert.equal(schema.additionalProperties, false);
+    assert.ok(schema.properties.items);
+    assert.equal("updates" in schema.properties, false);
+    assert.equal(typeof tool.prepareArguments, "function");
+
+    const legacy = {
+      todo_id: "todo-abcdef",
+      updates: [{ item_index: 1, status: "completed" }],
+      unexpected: "preserved",
+    };
+    const preparedLegacy = tool.prepareArguments!(legacy) as any;
+    assert.notEqual(preparedLegacy, legacy);
+    assert.deepEqual(preparedLegacy, {
+      todo_id: "todo-abcdef",
+      items: [{ item_index: 1, status: "completed" }],
+      unexpected: "preserved",
+    });
+    assert.equal("updates" in legacy, true);
+
+    const canonical = {
+      todo_id: "todo-abcdef",
+      items: [{ item_index: 1, status: "in_progress" }],
+    };
+    assert.equal(tool.prepareArguments!(canonical), canonical);
+
+    const mixed = {
+      todo_id: "todo-abcdef",
+      items: [{ item_index: 1, status: "completed" }],
+      updates: [{ item_index: 1, status: "failed" }],
+    };
+    assert.deepEqual(tool.prepareArguments!(mixed), {
+      todo_id: "todo-abcdef",
+      items: [{ item_index: 1, status: "completed" }],
+    });
+    assert.equal("updates" in mixed, true);
+
+    const invalidLegacy = { todo_id: "todo-abcdef", updates: "invalid" };
+    assert.equal(tool.prepareArguments!(invalidLegacy), invalidLegacy);
+  });
+
+  it("executes legacy updates after argument preparation", async () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Continue a historical conversation",
+        items: ["Finish the existing item"],
+      }),
+    );
+    const legacyArgs = {
+      todo_id: created.todoId,
+      updates: [{ item_index: 1, status: "completed" }],
+    };
+
+    const prepared = updateTool.prepareArguments!(legacyArgs);
+    const updated = parseToolResult(await updateTool.execute("call-2", prepared));
+
+    assert.equal(updated.success, true);
+    assert.equal(updated.todo.items[0].status, "completed");
+    assert.equal("updates" in legacyArgs, true);
   });
 
   it("creates todo state and todo.json", async () => {
@@ -174,7 +253,176 @@ describe("astron-todo-sync", () => {
       }),
     );
 
+    assertToolError(result, "INVALID_ARGUMENT", "astron_single_agent_todo_create");
     assert.match(result.error, /lowercase alphanumeric/);
+  });
+
+  it("returns structured invalid argument errors from every tool", async () => {
+    const createError = parseToolResult(
+      await createTodoCreateTool(tmpDir).execute("call-1", { task: "" }),
+    );
+    const getError = parseToolResult(
+      await createTodoGetTool(tmpDir).execute("call-2", { todo_id: "invalid" }),
+    );
+    const updateError = parseToolResult(
+      await createTodoUpdateTool(tmpDir).execute("call-3", { todo_id: "invalid" }),
+    );
+    const completeError = parseToolResult(
+      await createTodoCompleteTool(tmpDir).execute("call-4", { todo_id: "invalid" }),
+    );
+
+    assertToolError(createError, "INVALID_ARGUMENT", "astron_single_agent_todo_create");
+    assertToolError(getError, "INVALID_ARGUMENT", "astron_single_agent_todo_get");
+    assertToolError(updateError, "INVALID_ARGUMENT", "astron_single_agent_todo_update");
+    assertToolError(completeError, "INVALID_ARGUMENT", "astron_single_agent_todo_complete");
+  });
+
+  it("marks get list and detail responses successful", async () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const getTool = createTodoGetTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Read a todo",
+        items: ["One"],
+      }),
+    );
+
+    const list = parseToolResult(await getTool.execute("call-2", {}));
+    const detail = parseToolResult(
+      await getTool.execute("call-3", {
+        todo_id: created.todoId,
+      }),
+    );
+
+    assert.equal(list.success, true);
+    assert.equal(list.todos[0].todoId, created.todoId);
+    assert.equal(detail.success, true);
+    assert.equal(detail.todo.todoId, created.todoId);
+  });
+
+  it("returns structured unavailable errors for get, update, and complete", async () => {
+    const todoId = "missing-abcdef";
+    const getError = parseToolResult(
+      await createTodoGetTool(tmpDir).execute("call-1", { todo_id: todoId }),
+    );
+    const updateError = parseToolResult(
+      await createTodoUpdateTool(tmpDir).execute("call-2", {
+        todo_id: todoId,
+        items: [{ item_index: 1, status: "completed" }],
+      }),
+    );
+    const completeError = parseToolResult(
+      await createTodoCompleteTool(tmpDir).execute("call-3", { todo_id: todoId }),
+    );
+
+    for (const result of [getError, updateError, completeError]) {
+      assertToolError(result, "TODO_UNAVAILABLE", "astron_single_agent_todo_get");
+      assert.deepEqual(result.next_action.arguments, {});
+    }
+  });
+
+  it("returns internal errors without exposing storage details", async () => {
+    const blockedStateDir = path.join(tmpDir, "not-a-directory");
+    await fs.writeFile(blockedStateDir, "blocked", "utf-8");
+
+    const createError = parseToolResult(
+      await createTodoCreateTool(blockedStateDir).execute("call-1", {
+        task: "Cannot create state",
+      }),
+    );
+    const listError = parseToolResult(
+      await createTodoGetTool(blockedStateDir).execute("call-2", {}),
+    );
+
+    const created = parseToolResult(
+      await createTodoCreateTool(tmpDir).execute("call-3", {
+        task: "Corrupt todo state",
+        items: ["One"],
+      }),
+    );
+    await fs.writeFile(getTodoPath(tmpDir, DEFAULT_SESSION_ID, created.todoId), "{", "utf-8");
+
+    const readError = parseToolResult(
+      await createTodoGetTool(tmpDir).execute("call-4", { todo_id: created.todoId }),
+    );
+    const updateError = parseToolResult(
+      await createTodoUpdateTool(tmpDir).execute("call-5", {
+        todo_id: created.todoId,
+        items: [{ item_index: 1, status: "completed" }],
+      }),
+    );
+    const completeError = parseToolResult(
+      await createTodoCompleteTool(tmpDir).execute("call-6", { todo_id: created.todoId }),
+    );
+
+    for (const result of [createError, listError, readError, updateError, completeError]) {
+      assertToolError(result, "INTERNAL_ERROR");
+      assert.equal(result.next_action, undefined);
+      assert.equal(result.error.includes(tmpDir), false);
+    }
+  });
+
+  it("keeps todo state unchanged when session metadata updates fail", async () => {
+    const corruptSessionPath = getSessionPath(tmpDir, SESSION_A);
+    await fs.mkdir(path.dirname(corruptSessionPath), { recursive: true });
+    await fs.writeFile(corruptSessionPath, "{", "utf-8");
+
+    const createError = parseToolResult(
+      await createTodoCreateTool(tmpDir, SESSION_A).execute("call-1", {
+        task: "Do not leave an orphan todo",
+        items: ["One"],
+      }),
+    );
+    assertToolError(createError, "INTERNAL_ERROR");
+    assert.deepEqual(await readTodoSummaries(tmpDir, SESSION_A), []);
+    assert.deepEqual(await fs.readdir(path.dirname(corruptSessionPath)), ["session.json"]);
+
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const completeTool = createTodoCompleteTool(tmpDir);
+    const updateTarget = parseToolResult(
+      await createTool.execute("call-2", {
+        task: "Do not partially update",
+        items: ["One"],
+      }),
+    );
+    const completeTarget = parseToolResult(
+      await createTool.execute("call-3", {
+        task: "Do not partially close",
+        items: ["One"],
+      }),
+    );
+    await updateTool.execute("call-4", {
+      todo_id: completeTarget.todoId,
+      items: [{ item_index: 1, status: "completed" }],
+    });
+
+    const updateBefore = await readTodo(tmpDir, DEFAULT_SESSION_ID, updateTarget.todoId);
+    const completeBefore = await readTodo(tmpDir, DEFAULT_SESSION_ID, completeTarget.todoId);
+    await fs.writeFile(getSessionPath(tmpDir, DEFAULT_SESSION_ID), "{", "utf-8");
+
+    const updateError = parseToolResult(
+      await updateTool.execute("call-5", {
+        todo_id: updateTarget.todoId,
+        items: [{ item_index: 1, status: "in_progress" }],
+      }),
+    );
+    const completeError = parseToolResult(
+      await completeTool.execute("call-6", {
+        todo_id: completeTarget.todoId,
+      }),
+    );
+
+    assertToolError(updateError, "INTERNAL_ERROR");
+    assertToolError(completeError, "INTERNAL_ERROR");
+    assert.deepEqual(
+      await readTodo(tmpDir, DEFAULT_SESSION_ID, updateTarget.todoId),
+      updateBefore,
+    );
+    assert.deepEqual(
+      await readTodo(tmpDir, DEFAULT_SESSION_ID, completeTarget.todoId),
+      completeBefore,
+    );
   });
 
   it("marks handled HTTP error responses as handled", async () => {
@@ -220,16 +468,23 @@ describe("astron-todo-sync", () => {
 
     const listA = parseToolResult(await getForA.execute("call-2", {}));
     const listB = parseToolResult(await getForB.execute("call-3", {}));
+    assert.equal(listA.success, true);
+    assert.equal(listB.success, true);
     assert.equal(listA.todos.length, 1);
     assert.equal(listB.todos.length, 0);
 
+    const beforeUpdate = await readTodo(tmpDir, sessionA, created.todoId);
     const crossSessionUpdate = parseToolResult(
       await updateForB.execute("call-4", {
         todo_id: created.todoId,
-        updates: [{ item_index: 1, status: "completed" }],
+        items: [{ item_index: 1, status: "completed" }],
       }),
     );
+    const afterUpdate = await readTodo(tmpDir, sessionA, created.todoId);
+
+    assertToolError(crossSessionUpdate, "TODO_UNAVAILABLE", "astron_single_agent_todo_get");
     assert.match(crossSessionUpdate.error, /not found|not available in this session/);
+    assert.deepEqual(afterUpdate, beforeUpdate);
   });
 
   it("updates item status timestamps and appends late todo items", async () => {
@@ -254,7 +509,7 @@ describe("astron-todo-sync", () => {
     const updated = parseToolResult(
       await updateTool.execute("call-3", {
         todo_id: created.todoId,
-        updates: [
+        items: [
           {
             item_id: "analysis",
             status: "completed",
@@ -275,6 +530,31 @@ describe("astron-todo-sync", () => {
     assert.equal(summaries[0]!.completedItemCount, 1);
   });
 
+  it("does not persist append_items when an update item is not found", async () => {
+    const createTool = createTodoCreateTool(tmpDir);
+    const updateTool = createTodoUpdateTool(tmpDir);
+    const created = parseToolResult(
+      await createTool.execute("call-1", {
+        task: "Reject an invalid item update",
+        items: ["Existing item"],
+      }),
+    );
+    const beforeUpdate = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+
+    const result = parseToolResult(
+      await updateTool.execute("call-2", {
+        todo_id: created.todoId,
+        append_items: ["Must not be persisted"],
+        items: [{ item_id: "missing-item", status: "completed" }],
+      }),
+    );
+    const afterUpdate = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+
+    assertToolError(result, "TODO_ITEM_NOT_FOUND", "astron_single_agent_todo_get");
+    assert.deepEqual(result.next_action.arguments, { todo_id: created.todoId });
+    assert.deepEqual(afterUpdate, beforeUpdate);
+  });
+
   it("keeps todo.json readable after repeated updates", async () => {
     const createTool = createTodoCreateTool(tmpDir);
     const updateTool = createTodoUpdateTool(tmpDir);
@@ -288,11 +568,11 @@ describe("astron-todo-sync", () => {
     for (let index = 1; index <= 3; index++) {
       await updateTool.execute(`call-${index + 1}`, {
         todo_id: created.todoId,
-        updates: [{ item_index: index, status: "in_progress" }],
+        items: [{ item_index: index, status: "in_progress" }],
       });
       await updateTool.execute(`call-${index + 10}`, {
         todo_id: created.todoId,
-        updates: [{ item_index: index, status: "completed" }],
+        items: [{ item_index: index, status: "completed" }],
       });
       const raw = await fs.readFile(getTodoPath(tmpDir, DEFAULT_SESSION_ID, created.todoId), "utf-8");
       assert.doesNotThrow(() => JSON.parse(raw));
@@ -316,7 +596,7 @@ describe("astron-todo-sync", () => {
       Array.from({ length: 20 }, (_, index) =>
         updateTool.execute(`call-${index + 2}`, {
           todo_id: created.todoId,
-          updates: [
+          items: [
             {
               item_index: 1,
               status: index % 2 === 0 ? "in_progress" : "completed",
@@ -343,7 +623,7 @@ describe("astron-todo-sync", () => {
 
     await updateTool.execute("call-2", {
       todo_id: created.todoId,
-      updates: [
+      items: [
         { item_index: 1, status: "completed" },
         { item_index: 2, status: "failed" },
       ],
@@ -389,7 +669,7 @@ describe("astron-todo-sync", () => {
     const updatePromise = wait(50).then(() =>
       updateTool.execute("call-3", {
         todo_id: created.todoId,
-        updates: [
+        items: [
           { item_index: 1, status: "completed" },
           { item_index: 2, status: "completed" },
         ],
@@ -420,7 +700,7 @@ describe("astron-todo-sync", () => {
 
     await updateTool.execute("call-2", {
       todo_id: created.todoId,
-      updates: [{ item_index: 1, status: "completed" }],
+      items: [{ item_index: 1, status: "completed" }],
     });
     await completeTool.execute("call-3", {
       todo_id: created.todoId,
@@ -430,14 +710,18 @@ describe("astron-todo-sync", () => {
     const updated = parseToolResult(
       await updateTool.execute("call-4", {
         todo_id: created.todoId,
-        updates: [{ item_index: 1, status: "in_progress" }],
+        items: [{ item_index: 1, status: "in_progress" }],
       }),
     );
     const afterUpdate = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
 
+    assertToolError(updated, "TODO_CLOSED", "astron_single_agent_todo_create");
     assert.match(updated.error, /already closed/);
     assert.match(updated.error, /Do not retry updating this todo_id/);
     assert.match(updated.error, /astron_single_agent_todo_create/);
+    assert.equal(updated.status, beforeUpdate.status);
+    assert.deepEqual(updated.todo, beforeUpdate);
+    assert.equal(updated.next_action.arguments, undefined);
     assert.deepEqual(afterUpdate, beforeUpdate);
   });
 
@@ -454,7 +738,7 @@ describe("astron-todo-sync", () => {
 
     await updateTool.execute("call-2", {
       todo_id: created.todoId,
-      updates: [{ item_index: 1, status: "completed" }],
+      items: [{ item_index: 1, status: "completed" }],
     });
     await completeTool.execute("call-3", {
       todo_id: created.todoId,
@@ -482,6 +766,7 @@ describe("astron-todo-sync", () => {
         items: ["Still pending"],
       }),
     );
+    const beforeComplete = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
 
     const completed = parseToolResult(
       await completeTool.execute("call-2", {
@@ -489,9 +774,18 @@ describe("astron-todo-sync", () => {
       }),
     );
 
+    assertToolError(
+      completed,
+      "TODO_HAS_OPEN_ITEMS",
+      "astron_single_agent_todo_update",
+    );
     assert.match(completed.error, /Cannot complete todo/);
-    const todo = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
-    assert.equal(todo.status, "running");
+    assert.deepEqual(completed.incompleteItems, [
+      { id: "item-1", title: "Still pending", status: "pending" },
+    ]);
+    assert.equal(completed.next_action.arguments, undefined);
+    const afterComplete = await readTodo(tmpDir, DEFAULT_SESSION_ID, created.todoId);
+    assert.deepEqual(afterComplete, beforeComplete);
   });
 
   it("keeps open todo running on successful agent_end", async () => {
@@ -563,7 +857,7 @@ describe("astron-todo-sync", () => {
 
     await updateTool.execute("call-2", {
       todo_id: created.todoId,
-      updates: [{ item_index: 1, status: "completed" }],
+      items: [{ item_index: 1, status: "completed" }],
     });
     await completeTool.execute("call-3", {
       todo_id: created.todoId,

@@ -178,13 +178,13 @@ type TodoSummary = {
 ```json
 {
   "todo_id": "dinner-checklist-a1b2c3",
-  "updates": [
+  "items": [
     {
-      "item_index": 0,
+      "item_index": 1,
       "status": "completed"
     },
     {
-      "item_index": 1,
+      "item_index": 2,
       "status": "in_progress"
     }
   ]
@@ -193,7 +193,8 @@ type TodoSummary = {
 
 关键规则：
 
-- 可用 `item_id` 或 `item_index` 定位事项。
+- 状态变更统一通过顶层 `items` 参数提交。
+- 可用 `item_id` 或从 1 开始的 `item_index` 定位事项。
 - 一次调用可以批量更新多个事项。
 - 若执行中发现新事项，可以通过 `append_items` 追加。
 

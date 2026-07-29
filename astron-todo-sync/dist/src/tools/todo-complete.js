@@ -1,6 +1,6 @@
 import { DEFAULT_SESSION_ID } from "../constants.js";
 import { readTodo, todoBelongsToSessionId, updateTodoSummary, validateTodoId, writeTodo, } from "../todo-state.js";
-import { jsonResult, nowIso } from "../tool-utils.js";
+import { errorResult, isErrorCode, jsonResult, nowIso } from "../tool-utils.js";
 const TodoCompleteSchema = {
     type: "object",
     additionalProperties: false,
@@ -16,6 +16,21 @@ function wait(ms) {
 function getIncompleteItems(todo) {
     return todo.items.filter((item) => item.status !== "completed" && item.status !== "failed");
 }
+function unavailableTodoResult(todoId) {
+    return errorResult("TODO_UNAVAILABLE", `Todo "${todoId}" is not available in this session.`, {
+        nextAction: {
+            tool: "astron_single_agent_todo_get",
+            instruction: "List todos available in the current session without reusing this todo_id.",
+            arguments: {},
+        },
+    });
+}
+function todoReadErrorResult(todoId, error) {
+    if (isErrorCode(error, "ENOENT")) {
+        return unavailableTodoResult(todoId);
+    }
+    return errorResult("INTERNAL_ERROR", "Failed to read todo state.");
+}
 export function createTodoCompleteTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
     return {
         name: "astron_single_agent_todo_complete",
@@ -25,23 +40,31 @@ export function createTodoCompleteTool(stateDir, sessionId = DEFAULT_SESSION_ID)
         async execute(_toolCallId, params) {
             const todoId = params.todo_id?.trim();
             if (!todoId) {
-                return jsonResult({ error: "todo_id is required" });
+                return errorResult("INVALID_ARGUMENT", "todo_id is required", {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_complete",
+                        instruction: "Provide the current todo_id and call the complete tool again.",
+                    },
+                });
             }
             const validationError = validateTodoId(todoId);
             if (validationError) {
-                return jsonResult({ error: validationError });
+                return errorResult("INVALID_ARGUMENT", validationError, {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_complete",
+                        instruction: "Correct the todo_id and call the complete tool again.",
+                    },
+                });
             }
             let todo;
             try {
                 todo = await readTodo(stateDir, sessionId, todoId);
             }
             catch (err) {
-                return jsonResult({
-                    error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
-                });
+                return todoReadErrorResult(todoId, err);
             }
             if (!todoBelongsToSessionId(todo, sessionId)) {
-                return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
+                return unavailableTodoResult(todoId);
             }
             if (todo.status === "completed" || todo.status === "failed") {
                 return jsonResult({
@@ -61,23 +84,26 @@ export function createTodoCompleteTool(stateDir, sessionId = DEFAULT_SESSION_ID)
                     todo = await readTodo(stateDir, sessionId, todoId);
                 }
                 catch (err) {
-                    return jsonResult({
-                        error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
-                    });
+                    return todoReadErrorResult(todoId, err);
                 }
                 if (!todoBelongsToSessionId(todo, sessionId)) {
-                    return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
+                    return unavailableTodoResult(todoId);
                 }
                 incomplete = getIncompleteItems(todo);
             }
             if (incomplete.length > 0) {
-                return jsonResult({
-                    error: "Cannot complete todo while items are still pending or in progress.",
-                    incompleteItems: incomplete.map((item) => ({
-                        id: item.id,
-                        title: item.title,
-                        status: item.status,
-                    })),
+                return errorResult("TODO_HAS_OPEN_ITEMS", "Cannot complete todo while items are still pending or in progress.", {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_update",
+                        instruction: "Finish the remaining work, update each item using its real outcome, then call complete once.",
+                    },
+                    extra: {
+                        incompleteItems: incomplete.map((item) => ({
+                            id: item.id,
+                            title: item.title,
+                            status: item.status,
+                        })),
+                    },
                 });
             }
             const timestamp = nowIso();
@@ -88,8 +114,13 @@ export function createTodoCompleteTool(stateDir, sessionId = DEFAULT_SESSION_ID)
                 updatedAt: timestamp,
                 closedAt: timestamp,
             };
-            await writeTodo(stateDir, nextTodo);
-            await updateTodoSummary(stateDir, nextTodo);
+            try {
+                await updateTodoSummary(stateDir, nextTodo);
+                await writeTodo(stateDir, nextTodo);
+            }
+            catch {
+                return errorResult("INTERNAL_ERROR", "Failed to complete todo state.");
+            }
             return jsonResult({
                 success: true,
                 todoId,

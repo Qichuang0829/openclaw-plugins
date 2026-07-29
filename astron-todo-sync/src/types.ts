@@ -8,6 +8,7 @@ export type AnyAgentTool = {
   label?: string;
   description: string;
   parameters: unknown;
+  prepareArguments?(args: unknown): unknown;
   execute(
     toolCallId: string,
     params: any,

@@ -1,7 +1,7 @@
 import { DEFAULT_SESSION_ID } from "../constants.js";
 import { readTodo, readTodoSummaries, todoBelongsToSessionId, validateTodoId } from "../todo-state.js";
 import type { AnyAgentTool } from "../types.js";
-import { jsonResult } from "../tool-utils.js";
+import { errorResult, isErrorCode, jsonResult } from "../tool-utils.js";
 
 const TodoGetSchema = {
   type: "object",
@@ -25,25 +25,54 @@ export function createTodoGetTool(stateDir: string, sessionId = DEFAULT_SESSION_
     async execute(_toolCallId: string, params: TodoGetParams) {
       const todoId = params.todo_id?.trim();
       if (!todoId) {
-        return jsonResult({
-          todos: await readTodoSummaries(stateDir, sessionId),
-        });
+        try {
+          return jsonResult({
+            success: true,
+            todos: await readTodoSummaries(stateDir, sessionId),
+          });
+        } catch {
+          return errorResult("INTERNAL_ERROR", "Failed to list todo state.");
+        }
       }
       const validationError = validateTodoId(todoId);
       if (validationError) {
-        return jsonResult({ error: validationError });
+        return errorResult("INVALID_ARGUMENT", validationError, {
+          nextAction: {
+            tool: "astron_single_agent_todo_get",
+            instruction: "Correct the todo_id and call the get tool again.",
+          },
+        });
       }
 
       try {
         const todo = await readTodo(stateDir, sessionId, todoId);
         if (!todoBelongsToSessionId(todo, sessionId)) {
-          return jsonResult({ error: `Todo "${todoId}" is not available in this session.` });
+          return errorResult(
+            "TODO_UNAVAILABLE",
+            `Todo "${todoId}" is not available in this session.`,
+            {
+              nextAction: {
+                tool: "astron_single_agent_todo_get",
+                instruction:
+                  "List todos available in the current session without reusing this todo_id.",
+                arguments: {},
+              },
+            },
+          );
         }
-        return jsonResult({ todo });
+        return jsonResult({ success: true, todo });
       } catch (err) {
-        return jsonResult({
-          error: `Todo "${todoId}" not found: ${err instanceof Error ? err.message : String(err)}`,
-        });
+        if (isErrorCode(err, "ENOENT")) {
+          return errorResult("TODO_UNAVAILABLE", `Todo "${todoId}" is not available in this session.`, {
+            nextAction: {
+              tool: "astron_single_agent_todo_get",
+              instruction:
+                "List todos available in the current session without reusing this todo_id.",
+              arguments: {},
+            },
+          });
+        }
+        return errorResult("INTERNAL_ERROR", "Failed to read todo state.");
       }
     },
   } as AnyAgentTool;

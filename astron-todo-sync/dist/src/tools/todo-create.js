@@ -1,6 +1,6 @@
 import { DEFAULT_SESSION_ID } from "../constants.js";
 import { createTodoIdFromBase, createTodoWorkspace } from "../todo-state.js";
-import { jsonResult, nowIso } from "../tool-utils.js";
+import { errorResult, jsonResult, nowIso } from "../tool-utils.js";
 const TodoItemObjectSchema = {
     type: "object",
     properties: {
@@ -52,7 +52,12 @@ export function createTodoCreateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
         async execute(_toolCallId, params) {
             const task = params.task?.trim();
             if (!task) {
-                return jsonResult({ error: "task is required" });
+                return errorResult("INVALID_ARGUMENT", "task is required", {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_create",
+                        instruction: "Provide a non-empty task and call the create tool again.",
+                    },
+                });
             }
             const timestamp = nowIso();
             let todoId;
@@ -60,7 +65,12 @@ export function createTodoCreateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
                 todoId = createTodoIdFromBase(params.todo_id);
             }
             catch (err) {
-                return jsonResult({ error: err instanceof Error ? err.message : String(err) });
+                return errorResult("INVALID_ARGUMENT", err instanceof Error ? err.message : String(err), {
+                    nextAction: {
+                        tool: "astron_single_agent_todo_create",
+                        instruction: "Correct the todo_id base and call the create tool again.",
+                    },
+                });
             }
             const todo = {
                 todoId,
@@ -71,12 +81,17 @@ export function createTodoCreateTool(stateDir, sessionId = DEFAULT_SESSION_ID) {
                 createdAt: timestamp,
                 updatedAt: timestamp,
             };
-            const summary = await createTodoWorkspace(stateDir, todo);
-            return jsonResult({
-                success: true,
-                ...summary,
-                todo,
-            });
+            try {
+                const summary = await createTodoWorkspace(stateDir, todo);
+                return jsonResult({
+                    success: true,
+                    ...summary,
+                    todo,
+                });
+            }
+            catch {
+                return errorResult("INTERNAL_ERROR", "Failed to create todo state.");
+            }
         },
     };
 }
